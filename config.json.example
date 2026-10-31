@@ -1,0 +1,10 @@
+{
+  "rpc_url": "http://127.0.0.1:8332",
+  "cookie_file": "",
+  "rpc_user": "",
+  "rpc_password": "",
+  "rules_file": "rules.json",
+  "poll_seconds": 10,
+  "fee_delta_sats": -1000000000000000,
+  "dry_run": true
+}
