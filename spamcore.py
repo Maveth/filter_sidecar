@@ -253,6 +253,17 @@ CONSENSUS_MAX_BLOCK_SIGOPS = 80_000
 ANCHOR_SCRIPT = bytes.fromhex("51024e73")
 
 
+def _ark_zero_fee_parent(raw: bytes, outputs: list[tuple[int, bytes]], fee: int | None) -> bool:
+    """True for the low-fee Ark parent this pool wants, not today's high-fee rounds."""
+    if fee != 0 or len(raw) < 4:
+        return False
+    version = int.from_bytes(raw[:4], "little")
+    if version != 3:
+        return False
+    anchors = [(value, script) for value, script in outputs if script == ANCHOR_SCRIPT and value == 0]
+    return len(anchors) == 1
+
+
 def clamp_template_request(req: dict, flags: dict) -> dict:
     """Copy Knots block limits onto the template request, never above consensus."""
     out = dict(req)
@@ -304,6 +315,14 @@ def tx_reject_reason(raw: bytes, flags: dict, fee: int | None = None, weight: in
             script = raw[off:off + slen]
             off += slen
             outputs.append((value, script))
+        # Ark package parent: version 3, miner fee exactly 0, one zero
+        # pay-to-anchor. The child spends that anchor and pays the small fee.
+        # A high-fee transaction is not this shape, even if it has an anchor.
+        # Knots admits that parent only with the startup lines in
+        # settings.KNOTS_FOR_ARK_WHITELIST. This flag does not change the node.
+        if flags.get("whitelist_ark_zero_anchor") is not False and _ark_zero_fee_parent(raw, outputs, fee):
+            return None
+        for value, script in outputs:
             reason = _script_spam(script, True, flags)
             if reason:
                 return reason
@@ -380,6 +399,9 @@ def tx_reject_reason(raw: bytes, flags: dict, fee: int | None = None, weight: in
                 effective_vsize = (weight + data_bytes * cost) / 4
                 if fee < rate * effective_vsize:
                     return "datacarriercost"
+        if isinstance(rate, (int, float)) and rate > 0 and isinstance(fee, int) and isinstance(weight, int) and weight > 0:
+            if fee < float(rate) * max(1, weight / 4):
+                return "minfeerate"
     except (ValueError, IndexError):
         return None
     return None

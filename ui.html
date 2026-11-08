@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sidecar settings</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; font: 16px/1.45 sans-serif; background: #141414; color: #eee; }
+  main { max-width: 46rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  h1 { font-size: 1.4rem; margin: 0 0 0.3rem; }
+  p, li { color: #ccc; }
+  .file { color: #9ad; }
+  fieldset { border: 1px solid #333; border-radius: 8px; margin: 1rem 0; padding: 0.8rem 1rem 0.2rem; }
+  legend { padding: 0 0.3rem; }
+  label.row { display: grid; grid-template-columns: 1fr auto; gap: 0.3rem 1rem; align-items: center; margin: 0.7rem 0; }
+  label.row span { grid-column: 1 / -1; color: #999; font-size: 0.9rem; }
+  input[type="number"], input[type="text"] { width: 8rem; background: #222; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 0.3rem; }
+  #knots { background: #2a2416; border: 1px solid #8a6d2f; border-radius: 8px; padding: 0.9rem 1rem; }
+  #knots h2 { font-size: 1.05rem; margin: 0 0 0.4rem; }
+  #knots pre { background: #111; padding: 0.7rem; overflow: auto; border-radius: 6px; }
+  #knots dl { margin: 0.6rem 0 0; }
+  #knots dt { font-family: ui-monospace, monospace; margin-top: 0.7rem; }
+  button { background: #244; color: #eee; border: 0; border-radius: 6px; padding: 0.55rem 0.9rem; font-size: 1rem; }
+  #status { min-height: 1.4rem; }
+  .err { color: #f99; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Sidecar settings</h1>
+  <p>This page edits <span class="file" id="path"></span>. The sidecar reads that file on its next poll. It does not change the Knots config and it does not restart Knots.</p>
+  <form id="form"></form>
+  <section id="knots" hidden></section>
+  <p><button type="submit" form="form">Save rules</button></p>
+  <p id="status"></p>
+</main>
+<script>
+const form = document.querySelector("#form");
+const knotsEl = document.querySelector("#knots");
+const statusEl = document.querySelector("#status");
+let meta = null;
+
+function fieldInput(field, value) {
+  if (field.type === "bool") {
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = value === true;
+    input.name = field.key;
+    return input;
+  }
+  const input = document.createElement("input");
+  input.name = field.key;
+  input.type = field.type === "int" || field.type === "number" ? "number" : "text";
+  input.min = "0";
+  input.step = field.type === "int" ? "1" : "any";
+  if (value === null || value === undefined) input.value = "";
+  else input.value = value;
+  return input;
+}
+
+function currentRules() {
+  const rules = {};
+  for (const field of meta.fields) {
+    const input = form.elements[field.key];
+    if (field.type === "bool") rules[field.key] = input.checked;
+    else if (input.value === "") rules[field.key] = null;
+    else rules[field.key] = field.type === "int" ? Number(input.value) : Number(input.value);
+  }
+  return rules;
+}
+
+function showKnots() {
+  const on = form.elements.whitelist_ark_zero_anchor.checked;
+  if (!on) { knotsEl.hidden = true; knotsEl.innerHTML = ""; return; }
+  const notice = meta.knots;
+  const lines = notice.lines.map((line) => line.conf).join("\n");
+  const items = notice.lines.map((line) =>
+    `<dt>${line.conf}</dt><dd>Default is <code>${line.default}</code>. ${line.why}</dd>`
+  ).join("");
+  knotsEl.hidden = false;
+  knotsEl.innerHTML = `<h2>${notice.title}</h2><p>${notice.summary}</p><pre>${lines}</pre><dl>${items}</dl>`;
+}
+
+function render() {
+  document.querySelector("#path").textContent = meta.path;
+  form.innerHTML = "";
+  for (const field of meta.fields) {
+    const label = document.createElement("label");
+    label.className = "row";
+    const title = document.createElement("strong");
+    title.textContent = field.label;
+    const help = document.createElement("span");
+    help.textContent = field.help;
+    const input = fieldInput(field, meta.rules[field.key]);
+    label.append(title, input, help);
+    form.append(label);
+  }
+  form.elements.whitelist_ark_zero_anchor.addEventListener("change", showKnots);
+  showKnots();
+}
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  statusEl.textContent = "Saving";
+  statusEl.className = "";
+  const response = await fetch("/api/rules", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(currentRules()),
+  });
+  const body = await response.json();
+  if (!response.ok) {
+    statusEl.textContent = body.error || "Save failed";
+    statusEl.className = "err";
+    return;
+  }
+  meta.rules = body.rules;
+  statusEl.textContent = body.notice
+    ? "Saved. The whitelist is on. Knots still needs the startup lines above."
+    : "Saved. The sidecar uses this file on its next poll.";
+});
+
+fetch("/api/meta").then((response) => response.json()).then((body) => {
+  meta = body;
+  render();
+}).catch(() => {
+  statusEl.textContent = "Could not load settings";
+  statusEl.className = "err";
+});
+</script>
+</body>
+</html>

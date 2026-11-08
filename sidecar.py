@@ -138,6 +138,7 @@ def main() -> int:
     decided: dict[str, str | None] = {}
     stamp: tuple[int, int] | None = None
     flags: dict = {}
+    once = cfg.get("once") is True
     while True:
         try:
             now = rules_stamp(rules_path)
@@ -149,6 +150,10 @@ def main() -> int:
             scan(node, flags, delta, dry_run, decided)
         except Exception as exc:
             print(f"scan failed: {exc}", flush=True)
+            if once:
+                return 1
+        if once:
+            return 0
         time.sleep(poll)
 
 

@@ -21,6 +21,7 @@
   "bytespersigop": 20,
   "maxtxlegacysigops": 2500,
   "maxscriptsize": 1650,
-  "dust_sat_per_kvb": null,
+  "dust_sat_per_kvb": 3000,
+  "whitelist_ark_zero_anchor": true,
   "minfeerate_sat_vb": null
 }
