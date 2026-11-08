@@ -1,8 +1,10 @@
 # filter-sidecar
 
-A second program from the template filter. The gateway does not connect to it.
+Mining policy for one Knots node. The gateway does not connect to it. The design and the limits are in [SPEC.md](SPEC.md).
 
 This program watches one node's mempool. When a transaction matches the spam rules, it calls `prioritisetransaction` with a large negative fee adjustment and leaves that mark in place. The node builds the only template, and it does not pick the marked transaction. The block fills with everything else.
+
+The mark does not stop relay. A transaction Knots has accepted is still announced. A transaction Knots rejects never reaches this program. Tightening what we mine is a rules change here. Loosening what Knots rejects is a Knots setting or a Knots build. A whitelist that needs a Knots setting lowered must say that this node will relay every transaction that setting newly accepts, and that only the whitelist is left unmarked so it can be mined.
 
 One node can hold one policy. Every gateway that uses that node sees the same block. A second cut of the same mempool is what the template filter is for. Keep both.
 
