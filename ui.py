@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Local settings page for one sidecar rules file.
 
-Binds to localhost only. Saving rewrites that rules file. It does not write
-bitcoin.conf and it does not restart Knots.
+Binds to localhost unless a bind address is passed. Saving rewrites that rules
+file. It does not write bitcoin.conf and it does not restart Knots.
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ HERE = Path(__file__).resolve().parent
 SHAPES_URL = "https://raw.githubusercontent.com/Maveth/filter_sidecar/main/shapes"
 PAGE = (HERE / "ui.html").read_text()
 BOARD = (HERE / "board.html").read_text()
-HOST = "192.168.1.195"
+HOST = "127.0.0.1"
 PORT = 8093
 
 
@@ -349,7 +349,7 @@ class Handler(BaseHTTPRequestHandler):
         self._json(200, {"rules": rules, "notice": notice})
 
 
-def serve(path: Path, port: int = PORT, log_path: Path | None = None) -> None:
+def serve(path: Path, port: int = PORT, log_path: Path | None = None, host: str = HOST) -> None:
     if not path.is_file():
         raise SystemExit(f"rules file not found: {path}")
     Handler.rules_path = path
@@ -358,8 +358,8 @@ def serve(path: Path, port: int = PORT, log_path: Path | None = None) -> None:
         Handler.log_path = log_path
         if "seed" in log_path.name and (HERE / "shapes.seed.json").is_file():
             Handler.shapes_path = HERE / "shapes.seed.json"
-    server = ThreadingHTTPServer((HOST, port), Handler)
-    print(f"sidecar view http://{HOST}:{port}/  settings /settings  rules {path} log {Handler.log_path}", flush=True)
+    server = ThreadingHTTPServer((host, port), Handler)
+    print(f"sidecar view http://{host}:{port}/  settings /settings  rules {path} log {Handler.log_path}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -372,7 +372,8 @@ def main() -> int:
     path = Path(sys.argv[1] if len(sys.argv) > 1 else HERE / "rules.json")
     port = int(sys.argv[2]) if len(sys.argv) > 2 else PORT
     log_path = Path(sys.argv[3]) if len(sys.argv) > 3 else None
-    serve(path, port, log_path)
+    host = sys.argv[4] if len(sys.argv) > 4 else HOST
+    serve(path, port, log_path, host)
     return 0
 
 

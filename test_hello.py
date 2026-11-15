@@ -21,7 +21,7 @@ class HelloTest(unittest.TestCase):
     def test_outbound_probe_uses_port_plus_two_and_skips_inbound(self):
         addrs = outbound_sidecar_addrs([
             {"addr": "127.0.0.1:28333", "inbound": False},
-            {"addr": "10.0.0.8:8333", "inbound": True},
+            {"addr": "203.0.113.8:8333", "inbound": True},
         ])
         self.assertEqual(addrs, ["127.0.0.1:28335"])
 

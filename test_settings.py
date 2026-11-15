@@ -141,7 +141,7 @@ class ShapeCardTest(unittest.TestCase):
         self.assertTrue(paid["test"])
         self.assertEqual(paid["sliders"][0]["value"], 1)
         self.assertFalse(board._silence({"rejectfanout": True}, "fanout")["rejectfanout"])
-        self.assertEqual(board.clean_address("192.168.0.3:8335"), "192.168.0.3:8335")
+        self.assertEqual(board.clean_address("203.0.113.5:8335"), "203.0.113.5:8335")
         lines = __import__("settings").bitcoin_conf_lines({"rejectparasites": True, "rejectfanout": True, "dust_sift": True, "dust_sat_per_kvb": 3000, "minfee_sift": False})
         self.assertIn("rejectparasites=1", lines)
         self.assertIn("dustrelayfee=0.00003000", lines)

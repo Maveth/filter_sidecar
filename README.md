@@ -38,7 +38,7 @@ Set `rpc_url` and either `cookie_file` or `rpc_user` / `rpc_password`. Leave `dr
 python3 ui.py rules.json
 ```
 
-Opens `http://192.168.1.195:8093/` on the LAN. That page shows the spam catalog, the whitelist, an empty peer list, sent whitelist packages, and the transactions the sidecar has marked. `/settings` edits the rules file. The sidecar picks that file up on its next poll. The page does not write `bitcoin.conf` and it does not restart Knots. Port 8092 is already taken on this host.
+Opens `http://127.0.0.1:8093/`. Pass a bind address as the fourth argument when the page should answer on another interface. That page shows the spam catalog, the whitelist, an empty peer list, sent whitelist packages, and the transactions the sidecar has marked. `/settings` edits the rules file. The sidecar picks that file up on its next poll. The page does not write `bitcoin.conf` and it does not restart Knots.
 
 The same fields are the options a later Start9 config form should expose. The Ark whitelist is one of them. Turning it on shows how a strict node still accepts that shape. Those steps are `KNOTS_FOR_ARK_WHITELIST` in `settings.py`. The node is not switched into a loose policy.
 
