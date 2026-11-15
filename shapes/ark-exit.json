@@ -1,0 +1,39 @@
+{
+  "id": "ark-exit",
+  "kind": "whitelist",
+  "carry": "package",
+  "title": "Ark exit",
+  "from": "ours",
+  "code": "parent only, in spamcore.py",
+  "schema": {
+    "parent": {
+      "version": 3,
+      "fee_sat": 0,
+      "anchor": {
+        "count": 1,
+        "value_sat": 0,
+        "script_hex": "51024e73"
+      }
+    },
+    "child": {
+      "spends": "the parent anchor",
+      "pays": "the miner fee"
+    }
+  },
+  "insert": {
+    "parent": {
+      "method": "sendrawtransaction",
+      "ignore_rejects": [
+        "min relay fee not met",
+        "dust-nonanchor",
+        "dust-nonzero",
+        "dust"
+      ]
+    },
+    "then": "the parent is in this mempool",
+    "child": {
+      "method": "sendrawtransaction"
+    }
+  },
+  "note": "The package is what moves between sidecars. Enabling it inserts the pair here and leaves it unmarked. It does not go out on the Bitcoin port. The child is part of the package and is not itself a whitelist shape."
+}

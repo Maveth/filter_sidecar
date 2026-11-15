@@ -1,0 +1,13 @@
+{
+  "id": "dust-output",
+  "kind": "spam",
+  "carry": "definition",
+  "title": "Dust output",
+  "from": "gbt-rules flt:side-dust",
+  "code": "dust_sat_per_kvb in spamcore.py",
+  "schema": {
+    "dust_outputs_min": 1,
+    "dust_rate_sat_per_vb": 3
+  },
+  "note": "Does not match the Ark exit parent. A zero-value anchor on that parent is the whitelist, not dust."
+}

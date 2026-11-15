@@ -1,0 +1,18 @@
+{
+  "id": "odd-script",
+  "kind": "watch",
+  "carry": "definition",
+  "title": "Odd output type",
+  "from": "gbt-rules flt:side-odd-script",
+  "code": false,
+  "schema": {
+    "output_type_not": [
+      "taproot",
+      "segwit-v0",
+      "p2sh",
+      "p2pkh",
+      "opreturn",
+      "anchor"
+    ]
+  }
+}

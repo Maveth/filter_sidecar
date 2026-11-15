@@ -1,0 +1,12 @@
+{
+  "id": "p2wpkh-data",
+  "kind": "spam",
+  "carry": "definition",
+  "title": "Data in P2WPKH hashes",
+  "from": "cesspool",
+  "code": false,
+  "schema": {
+    "output": "P2WPKH",
+    "program": "20 bytes that are payload, not a key hash"
+  }
+}

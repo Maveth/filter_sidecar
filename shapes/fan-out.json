@@ -1,0 +1,13 @@
+{
+  "id": "fan-out",
+  "kind": "spam",
+  "carry": "definition",
+  "title": "Fan-out",
+  "from": "gbt-rules flt:side-fan-out",
+  "code": "rejectfanout in spamcore.py",
+  "schema": {
+    "kept_outputs_min": 25,
+    "inputs_max": 2
+  },
+  "note": "One or two inputs paying many outputs that stay in the UTXO set. OP_RETURN does not count. A coinjoin has too many inputs."
+}

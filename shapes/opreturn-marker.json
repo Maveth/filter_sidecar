@@ -1,0 +1,13 @@
+{
+  "id": "opreturn-marker",
+  "kind": "watch",
+  "carry": "definition",
+  "title": "One small OP_RETURN",
+  "from": "gbt-rules flt:side-op_return",
+  "code": false,
+  "schema": {
+    "opreturn_count": 1,
+    "opreturn_bytes_max": 83
+  },
+  "note": "Too wide to mark. A named row in this file wins when the bytes match it."
+}

@@ -1,0 +1,15 @@
+{
+  "id": "commitment-32",
+  "kind": "whitelist",
+  "carry": "definition",
+  "title": "32-byte commitment",
+  "from": "cesspool",
+  "code": false,
+  "schema": {
+    "opreturn": {
+      "count": 1,
+      "payload_bytes": 32
+    }
+  },
+  "note": "OpenTimestamps, proof-of-reserves, and RGB use this length. The length is the match, not the contents. Leave it unmarked if the node already accepted it. No extra send."
+}
