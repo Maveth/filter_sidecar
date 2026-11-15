@@ -1,0 +1,15 @@
+{
+  "id": "WLS-7",
+  "kind": "whitelist",
+  "carry": "definition",
+  "title": "Pay-to-anchor sweep",
+  "from": "cesspool",
+  "code": false,
+  "schema": {
+    "spends": "pay-to-anchor outputs",
+    "only_output": "opreturn",
+    "opreturn_payload_bytes_max": 4
+  },
+  "note": "Same class as the Lightning sweep. Not the Ark exit. The Ark exit is a version-3 parent plus a paying child, and that one is the package.",
+  "slug": "p2a-sweep"
+}

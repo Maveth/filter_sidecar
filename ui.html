@@ -3,12 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sidecar settings</title>
+<title>Sift settings</title>
 <style>
   :root { color-scheme: dark; }
   body { margin: 0; font: 16px/1.45 sans-serif; background: #141414; color: #eee; }
   main { max-width: 46rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
   h1 { font-size: 1.4rem; margin: 0 0 0.3rem; }
+  .tag { margin: 0.15rem 0 0.8rem; color: #9ab; }
   p, li { color: #ccc; }
   .file { color: #9ad; }
   fieldset { border: 1px solid #333; border-radius: 8px; margin: 1rem 0; padding: 0.8rem 1rem 0.2rem; }
@@ -28,16 +29,16 @@
 </head>
 <body>
 <main>
-  <h1>Sidecar settings</h1>
-  <p>This page edits <span class="file" id="path"></span>. The sidecar reads that file on its next poll. It does not change the Knots config and it does not restart Knots.</p>
+  <h1>Sift settings</h1>
+  <p class="tag">a spam filter and whitelist sidecar for Bitcoin nodes · blake2b</p>
+  <p>This page edits <span class="file" id="path"></span>. Sift reads that file on its next poll. Turning a rule on marks matching transactions in the mempool. Turning it off removes that mark. It does not change the Knots config and it does not restart Knots.</p>
+  <p><a href="/">Back</a></p>
   <form id="form"></form>
-  <section id="knots" hidden></section>
   <p><button type="submit" form="form">Save rules</button></p>
   <p id="status"></p>
 </main>
 <script>
 const form = document.querySelector("#form");
-const knotsEl = document.querySelector("#knots");
 const statusEl = document.querySelector("#status");
 let meta = null;
 
@@ -70,18 +71,6 @@ function currentRules() {
   return rules;
 }
 
-function showKnots() {
-  const on = form.elements.whitelist_ark_zero_anchor.checked;
-  if (!on) { knotsEl.hidden = true; knotsEl.innerHTML = ""; return; }
-  const notice = meta.knots;
-  const lines = notice.lines.map((line) => line.conf).join("\n");
-  const items = notice.lines.map((line) =>
-    `<dt>${line.conf}</dt><dd>Default is <code>${line.default}</code>. ${line.why}</dd>`
-  ).join("");
-  knotsEl.hidden = false;
-  knotsEl.innerHTML = `<h2>${notice.title}</h2><p>${notice.summary}</p><pre>${lines}</pre><dl>${items}</dl>`;
-}
-
 function render() {
   document.querySelector("#path").textContent = meta.path;
   form.innerHTML = "";
@@ -96,8 +85,6 @@ function render() {
     label.append(title, input, help);
     form.append(label);
   }
-  form.elements.whitelist_ark_zero_anchor.addEventListener("change", showKnots);
-  showKnots();
 }
 
 form.addEventListener("submit", async (event) => {
@@ -116,9 +103,7 @@ form.addEventListener("submit", async (event) => {
     return;
   }
   meta.rules = body.rules;
-  statusEl.textContent = body.notice
-    ? "Saved. The whitelist is on. Knots still needs the startup lines above."
-    : "Saved. The sidecar uses this file on its next poll.";
+  statusEl.textContent = "Saved. Sift uses this file on its next poll.";
 });
 
 fetch("/api/meta").then((response) => response.json()).then((body) => {

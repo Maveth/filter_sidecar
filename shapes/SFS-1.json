@@ -1,0 +1,13 @@
+{
+  "id": "SFS-1",
+  "kind": "spam",
+  "carry": "definition",
+  "title": "CAT-21",
+  "from": "knots -rejectparasites",
+  "code": "locktime 21 in spamcore.py",
+  "schema": {
+    "locktime": 21
+  },
+  "note": "This is the whole Knots check. The schema page only names the option and points at inscriptions. Inscriptions are a different row.",
+  "slug": "cat21"
+}

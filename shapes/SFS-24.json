@@ -1,0 +1,14 @@
+{
+  "id": "SFS-24",
+  "kind": "spam",
+  "carry": "definition",
+  "title": "Inscription envelope",
+  "from": "gbt-rules flt:side-inscription",
+  "code": false,
+  "schema": {
+    "envelope_bytes_min": 1,
+    "pattern": "OP_FALSE OP_IF \u2026 ord"
+  },
+  "note": "On this chain OP_IF in a tapscript is already invalid. The row stays so the name is not confused with cat21.",
+  "slug": "inscription"
+}

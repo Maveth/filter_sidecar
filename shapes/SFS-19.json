@@ -1,0 +1,13 @@
+{
+  "id": "SFS-19",
+  "kind": "spam",
+  "carry": "definition",
+  "title": "Off-curve taproot key",
+  "from": "cesspool",
+  "code": false,
+  "schema": {
+    "output": "taproot",
+    "key": "not a valid curve point"
+  },
+  "slug": "off-curve-taproot"
+}

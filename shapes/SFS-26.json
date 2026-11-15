@@ -1,0 +1,12 @@
+{
+  "id": "SFS-26",
+  "kind": "spam",
+  "carry": "definition",
+  "title": "Several OP_RETURNs",
+  "from": "gbt-rules flt:side-op-return-stack",
+  "code": "rejectopreturnstack in spamcore.py",
+  "schema": {
+    "opreturn_count_min": 2
+  },
+  "slug": "opreturn-stack"
+}

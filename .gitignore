@@ -1,4 +1,13 @@
 __pycache__/
 config.json
+config.seed.json
 rules.json
 *.log
+*.peers.json
+*.inbox.json
+*.status.json
+*.manual.json
+sift-local.json
+shapes.local.json
+config.filter.json
+rules.filter.json

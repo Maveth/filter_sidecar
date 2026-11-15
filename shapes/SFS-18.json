@@ -1,0 +1,14 @@
+{
+  "id": "SFS-18",
+  "kind": "spam",
+  "carry": "definition",
+  "title": "Dust P2WSH run",
+  "from": "cesspool",
+  "code": "fakeoutput_count_min same-value P2WSH outputs in spamcore.py",
+  "schema": {
+    "outputs_min": 3,
+    "type": "P2WSH",
+    "same_value_sat_max": 546
+  },
+  "slug": "dust-p2wsh-run"
+}

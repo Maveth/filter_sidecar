@@ -1,0 +1,15 @@
+{
+  "id": "WLS-5",
+  "kind": "whitelist",
+  "carry": "definition",
+  "title": "Empty OP_RETURN",
+  "from": "cesspool",
+  "code": false,
+  "schema": {
+    "opreturn": {
+      "count": 1,
+      "payload_bytes": 0
+    }
+  },
+  "slug": "empty-opreturn"
+}

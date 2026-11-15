@@ -12,5 +12,6 @@
     },
     "dust_outputs": 0
   },
-  "note": "Ordinary small payments and anchors. Shown, not marked."
+  "note": "Ordinary small payments and anchors. Shown, not marked.",
+  "slug": "small-output"
 }

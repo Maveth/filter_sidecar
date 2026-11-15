@@ -8,11 +8,23 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
 import time
 import urllib.request
 from pathlib import Path
 
-from spamcore import tx_reject_reason
+import board
+from hello import Directory, outbound_sidecar_addrs
+from datetime import datetime, timezone
+import builtins
+
+def _stamp(*args, **kwargs):
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    builtins.print(now, *args, **kwargs)
+
+print = _stamp
+
+from spamcore import package_from_entry, tx_is_ark_whitelist, whitelist_items, tx_reject_reason
 
 # Larger than a block of fees, so a child cannot pay a marked parent back in.
 # Satoshis. Knots adds this to the fee it uses for mining selection only.
@@ -55,28 +67,34 @@ class Node:
             raise RuntimeError(f"{method}: {payload['error']}")
         return payload.get("result")
 
+    def batch(self, calls: list[tuple[str, list]], timeout: int = 120) -> list:
+        """One HTTP request, many RPC calls. A failed call comes back as None."""
+        if not self.url:
+            raise RuntimeError("rpc_url is empty")
+        body = json.dumps([
+            {"jsonrpc": "1.0", "id": i, "method": method, "params": params}
+            for i, (method, params) in enumerate(calls)
+        ]).encode()
+        req = urllib.request.Request(self.url, data=body, headers={"Content-Type": "application/json"})
+        if self._auth:
+            req.add_header("Authorization", self._auth)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            payload = json.loads(resp.read().decode())
+        if isinstance(payload, dict):
+            if payload.get("error"):
+                raise RuntimeError(str(payload["error"]))
+            payload = [payload]
+        by_id = {item.get("id"): item for item in payload if isinstance(item, dict)}
+        out = []
+        for i in range(len(calls)):
+            item = by_id.get(i) or {}
+            out.append(None if item.get("error") else item.get("result"))
+        return out
+
 
 def rules_stamp(path: Path) -> tuple[int, int]:
     st = path.stat()
     return st.st_mtime_ns, st.st_size
-
-
-def consider(node: Node, txid: str, flags: dict) -> str | None:
-    entry = node.call("getmempoolentry", [txid]) or {}
-    raw_hex = node.call("getrawtransaction", [txid])
-    if not isinstance(raw_hex, str):
-        return None
-    fees = (entry.get("fees") or {}).get("base")
-    fee_sat = int(round(float(fees) * 100_000_000)) if fees is not None else None
-    weight = entry.get("weight")
-    sigops = entry.get("sigops")
-    return tx_reject_reason(
-        bytes.fromhex(raw_hex),
-        flags,
-        fee=fee_sat,
-        weight=int(weight) if isinstance(weight, int) else None,
-        sigops=int(sigops) if isinstance(sigops, int) else None,
-    )
 
 
 def mark(node: Node, txid: str, delta: int, reason: str, dry_run: bool) -> None:
@@ -87,33 +105,146 @@ def mark(node: Node, txid: str, delta: int, reason: str, dry_run: bool) -> None:
     print(f"marked {txid} {reason} delta={delta}", flush=True)
 
 
-def scan(node: Node, flags: dict, delta: int, dry_run: bool, decided: dict[str, str | None]) -> None:
+def unmark(node: Node, txid: str, delta: int, dry_run: bool) -> None:
+    """Knots adds each fee delta. The opposite delta removes a mark."""
+    if dry_run:
+        print(f"would unmark {txid} delta={-delta}", flush=True)
+        return
+    node.call("prioritisetransaction", [txid, 0, int(-delta)])
+    print(f"unmarked {txid} delta={-delta}", flush=True)
+
+
+def fee_delta_sat(entry: dict) -> int:
+    fees = entry.get("fees") or {}
+    base = fees.get("base")
+    modified = fees.get("modified")
+    if base is None or modified is None:
+        return 0
+    return int(round((float(modified) - float(base)) * 100_000_000))
+
+
+def already_marked(entry: dict, delta: int) -> bool:
+    return fee_delta_sat(entry) <= delta // 2
+
+
+def wanted_marks(reasons: dict[str, str | None], children: dict[str, list[str]]) -> dict[str, str]:
+    """txid -> reason. A child of a marked tx is marked even with no reason of its own."""
+    want: dict[str, str] = {}
+    for txid, reason in reasons.items():
+        if reason:
+            want[txid] = reason
+    for txid, reason in list(want.items()):
+        if reason.startswith("child of "):
+            continue
+        for child in children.get(txid) or []:
+            if child not in want:
+                want[child] = f"child of {reason}"
+    return want
+
+
+def scan(
+    node: Node,
+    flags: dict,
+    delta: int,
+    dry_run: bool,
+    decided: dict[str, str | None],
+    marked: dict[str, str],
+    whitelist_ids: set[str],
+    one_ids: set[str],
+    two_ids: set[str],
+    rescan: bool,
+) -> dict[str, int]:
     txids = node.call("getrawmempool", [False]) or []
     live = set(txids)
-    for gone in [txid for txid in decided if txid not in live]:
+    if rescan:
+        decided.clear()
+    for gone in [txid for txid in list(decided) if txid not in live]:
         decided.pop(gone, None)
+    for gone in [txid for txid in list(whitelist_ids) if txid not in live]:
+        whitelist_ids.discard(gone)
+    for gone in [txid for txid in list(one_ids) if txid not in live]:
+        one_ids.discard(gone)
+    for gone in [txid for txid in list(two_ids) if txid not in live]:
+        two_ids.discard(gone)
+    reasons: dict[str, str | None] = {}
     for txid in txids:
-        if txid in decided:
+        if txid in decided and not rescan:
+            reasons[txid] = decided[txid]
             continue
         try:
-            reason = consider(node, txid, flags)
+            entry = node.call("getmempoolentry", [txid]) or {}
+            raw_hex = node.call("getrawtransaction", [txid])
+            if not isinstance(raw_hex, str):
+                continue
+            fees = (entry.get("fees") or {}).get("base")
+            fee_sat = int(round(float(fees) * 100_000_000)) if fees is not None else None
+            weight = entry.get("weight")
+            sigops = entry.get("sigops")
+            raw = bytes.fromhex(raw_hex)
+            package_fee, package_vsize = package_from_entry(entry)
+            reason = tx_reject_reason(
+                raw, flags, fee=fee_sat,
+                weight=int(weight) if isinstance(weight, int) else None,
+                sigops=int(sigops) if isinstance(sigops, int) else None,
+                package_fee_sat=package_fee, package_vsize=package_vsize,
+            )
+            if tx_is_ark_whitelist(raw, flags, fee_sat):
+                whitelist_ids.add(txid)
+            else:
+                whitelist_ids.discard(txid)
+            span = whitelist_items(
+                raw, flags, fee=fee_sat,
+                weight=int(weight) if isinstance(weight, int) else None,
+                sigops=int(sigops) if isinstance(sigops, int) else None,
+                package_fee_sat=package_fee, package_vsize=package_vsize,
+                descendant_count=int(entry.get("descendantcount") or 0),
+            )
+            if span == 2:
+                two_ids.add(txid)
+                one_ids.discard(txid)
+            elif span == 1:
+                one_ids.add(txid)
+                two_ids.discard(txid)
+            else:
+                one_ids.discard(txid)
+                two_ids.discard(txid)
         except Exception as exc:
             print(f"skip {txid}: {exc}", flush=True)
             continue
         decided[txid] = reason
+        reasons[txid] = reason
+        if not dry_run and txid not in marked and already_marked(entry, delta):
+            marked[txid] = reason or "marked"
+    children: dict[str, list[str]] = {}
+    for txid, reason in reasons.items():
         if not reason:
             continue
-        mark(node, txid, delta, reason, dry_run)
         try:
-            children = node.call("getmempooldescendants", [txid, False]) or []
+            kids = node.call("getmempooldescendants", [txid, False]) or []
         except Exception as exc:
             print(f"descendants {txid}: {exc}", flush=True)
-            children = []
-        for child in children:
-            if decided.get(child):
-                continue
-            decided[child] = f"child:{reason}"
-            mark(node, child, delta, f"child of {reason}", dry_run)
+            kids = []
+        children[txid] = list(kids)
+    want = wanted_marks(reasons, children)
+    for txid, reason in want.items():
+        if txid in marked:
+            marked[txid] = reason
+            continue
+        mark(node, txid, delta, reason, dry_run)
+        if not dry_run:
+            marked[txid] = reason
+    for txid in [txid for txid in marked if txid in live and txid not in want]:
+        unmark(node, txid, delta, dry_run)
+        if not dry_run:
+            marked.pop(txid, None)
+    blocked = sum(1 for txid in marked if txid in live)
+    return {
+        "mempool": len(live),
+        "blocked": blocked,
+        "whitelist": sum(1 for txid in whitelist_ids if txid in live),
+        "whitelist_one": sum(1 for txid in one_ids if txid in live),
+        "whitelist_two": sum(1 for txid in two_ids if txid in live),
+    }
 
 
 def main() -> int:
@@ -136,18 +267,121 @@ def main() -> int:
     if dry_run:
         print("dry_run is on: the node will not be changed", flush=True)
     decided: dict[str, str | None] = {}
+    marked: dict[str, str] = {}
+    whitelist_ids: set[str] = set()
+    one_ids: set[str] = set()
+    two_ids: set[str] = set()
     stamp: tuple[int, int] | None = None
     flags: dict = {}
     once = cfg.get("once") is True
+    listen = str(cfg.get("listen") or "")
+    status_path = cfg_path.parent / "sidecar.status.json"
+    if listen and not once:
+        catalog = 1
+        catalog_shapes: list = []
+        shapes = Path(cfg.get("shapes_file") or "shapes.json")
+        if not shapes.is_absolute():
+            shapes = cfg_path.parent / shapes
+        if shapes.is_file():
+            try:
+                loaded = json.loads(shapes.read_text())
+                catalog = int(loaded.get("version") or 1)
+                catalog_shapes = loaded.get("shapes") if isinstance(loaded.get("shapes"), list) else []
+                catalog_shapes = list(catalog_shapes) + board.load_private_shapes(shapes.parent)
+            except (json.JSONDecodeError, TypeError, ValueError):
+                catalog = 1
+        peers_path = Path(cfg.get("peers_file") or "peers.json")
+        if not peers_path.is_absolute():
+            peers_path = cfg_path.parent / peers_path
+        status_path = peers_path.parent / peers_path.name.replace(".peers.json", ".status.json")
+        carries = cfg.get("carries") if isinstance(cfg.get("carries"), list) else None
+        directory = Directory(str(cfg.get("name") or "sidecar"), listen, catalog, peers_path, carries)
+        directory.catalog_shapes = catalog_shapes
+        inbox_name = peers_path.name.replace(".peers.json", ".inbox.json")
+        inbox_path = Path(cfg.get("inbox_file") or peers_path.parent / inbox_name)
+        if not inbox_path.is_absolute():
+            inbox_path = cfg_path.parent / inbox_path
+        directory.inbox_path = inbox_path
+        directory.start()
+        configured = [str(item) for item in cfg.get("peers") or []]
+        manual_path = peers_path.with_name(peers_path.name.replace(".peers.json", ".manual.json"))
+        local_path = cfg_path.parent / "sift-local.json"
+
+        def read_local() -> dict:
+            try:
+                loaded = json.loads(local_path.read_text())
+            except (OSError, json.JSONDecodeError):
+                loaded = {}
+            if not isinstance(loaded, dict):
+                loaded = {}
+            loaded.setdefault("search_port_plus_2", True)
+            loaded.setdefault("accept_packages", False)
+            loaded.setdefault("import_received", False)
+            return loaded
+
+        def read_manual() -> list[str]:
+            try:
+                loaded = json.loads(manual_path.read_text())
+            except (OSError, json.JSONDecodeError):
+                return []
+            if not isinstance(loaded, list):
+                return []
+            return [str(item) for item in loaded if isinstance(item, str)]
+
+        def find_peers() -> None:
+            next_search = 0.0
+            while True:
+                local = read_local()
+                now = time.time()
+                if not local.get("search_now") and now < next_search:
+                    time.sleep(2)
+                    continue
+                targets = list(configured)
+                targets.extend(read_manual())
+                if local.get("search_port_plus_2", True):
+                    try:
+                        targets.extend(outbound_sidecar_addrs(node.call("getpeerinfo", []) or []))
+                    except Exception as exc:
+                        print(f"peer list failed: {exc}", flush=True)
+                seen: set[str] = set()
+                for address in targets:
+                    if address in seen or address == listen:
+                        continue
+                    seen.add(address)
+                    directory.dial(address)
+                if local.get("search_now"):
+                    local["search_now"] = False
+                    tmp = local_path.with_suffix(".json.tmp")
+                    tmp.write_text(json.dumps(local, indent=2) + "\n")
+                    tmp.replace(local_path)
+                next_search = time.time() + max(poll, 15)
+                time.sleep(2)
+
+        threading.Thread(target=find_peers, name="sidecar-find", daemon=True).start()
     while True:
         try:
             now = rules_stamp(rules_path)
-            if now != stamp:
+            rescan = stamp is None or now != stamp
+            if rescan:
                 flags = load_json(rules_path)
                 stamp = now
-                decided.clear()
                 print("rules loaded", flush=True)
-            scan(node, flags, delta, dry_run, decided)
+            counts = scan(node, flags, delta, dry_run, decided, marked, whitelist_ids, one_ids, two_ids, rescan)
+            peers_sent = 0
+            if status_path.with_name(status_path.name.replace(".status.json", ".peers.json")).is_file():
+                try:
+                    peer_rows = json.loads(status_path.with_name(status_path.name.replace(".status.json", ".peers.json")).read_text())
+                    peers_sent = sum(1 for row in peer_rows.get("peers") or [] if row.get("accept"))
+                except (json.JSONDecodeError, OSError):
+                    peers_sent = 0
+            status_path.write_text(json.dumps({
+                "mempool": counts["mempool"],
+                "blocked": counts["blocked"],
+                "whitelist": counts["whitelist"],
+                "whitelist_one": counts["whitelist_one"],
+                "whitelist_two": counts["whitelist_two"],
+                "peers_sent": peers_sent,
+            }) + "\n")
         except Exception as exc:
             print(f"scan failed: {exc}", flush=True)
             if once:

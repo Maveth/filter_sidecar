@@ -1,55 +1,28 @@
-"""Sidecar rule fields and the Knots lines the Ark whitelist depends on.
+"""Sidecar rule fields and how a strict node still accepts the Ark whitelist.
 
-The rules file is this program's policy. The Knots lines are a different file,
-read only when Knots starts. This module does not write bitcoin.conf.
+The rules file is this program's policy. The node stays on its normal strict
+settings. This module does not write bitcoin.conf.
 """
 from __future__ import annotations
 
-# Shown when whitelist_ark_zero_anchor is on. Defaults are Knots 29.4.3.
+# Shown when whitelist_ark_zero_anchor is on. The node is not loosened.
 KNOTS_FOR_ARK_WHITELIST = (
     {
-        "conf": "permitephemeral=anchor,-send,dust",
-        "default": "anchor,-send,-dust",
+        "conf": "sendrawtransaction <parent-hex> 0 0 ignore_rejects '[\"min relay fee not met\",\"dust-nonanchor\",\"dust-nonzero\",\"dust\"]'",
+        "default": "strict policy, parent rejected on the public peer port",
         "why": (
-            "The package parent is version 3, miner fee exactly 0, and one "
-            "zero-value pay-to-anchor. anchor allows that output. dust, without "
-            "the minus, allows a dust output the child spends in the same package. "
-            "The default minus on dust rejects that package before this program sees it."
+            "Version 3, miner fee exactly 0, one zero-value pay-to-anchor. "
+            "A strict node rejects that parent from a peer. ignore_rejects is "
+            "RPC-only, so the sidecar inserts this parent locally. Peers cannot."
         ),
     },
     {
-        "conf": "subdustfeepenalty=0",
-        "default": "1",
+        "conf": "sendrawtransaction <child-hex> 0",
+        "default": "only after the parent is in this mempool",
         "why": (
-            "The default penalty still charges sub-dust outputs. Turning it off "
-            "admits more than the whitelist. This node then relays that wider set. "
-            "The sidecar can leave only the whitelist unmarked. It cannot stop the relay."
-        ),
-    },
-    {
-        "conf": "mempooltruc=enforce",
-        "default": "accept",
-        "why": (
-            "Version 3 is limited to one parent and one child, which is the "
-            "package whose child pays the fee. This is one node-wide relay and "
-            "mine setting, applied at startup."
-        ),
-    },
-    {
-        "conf": "minrelaytxfee=0.00000100",
-        "default": "0.00001000",
-        "why": (
-            "0.1 sat/vB. The default 1 sat/vB can reject the small child fee that "
-            "carries the zero-fee parent. The parent alone never clears the relay floor."
-        ),
-    },
-    {
-        "conf": "dustrelayfee=0.00003000",
-        "default": "0.00003000",
-        "why": (
-            "3 sat/vB, already the Knots default. Keep the sidecar dust line at "
-            "3000 sat/kvB so the two match. A lower node dust setting lets every "
-            "dust shape in, not only this package."
+            "The child spends the anchor and pays the miner fee. It is a normal "
+            "submission. submitpackage cannot carry ignore_rejects. Use that RPC "
+            "only after Knots keeps the list through SingleInPackageAccept."
         ),
     },
 )
@@ -83,6 +56,128 @@ RULE_FIELDS = (
         "label": "Minimum fee rate",
         "help": "Sat/vB marked below this rate. Empty adds no sidecar fee floor.",
     },
+    {
+        "key": "rejectfanout",
+        "type": "bool",
+        "label": "Fan-out",
+        "help": "Mark a transaction with few inputs and many kept outputs. Off leaves it unmarked.",
+    },
+    {
+        "key": "fanout_outputs_min",
+        "type": "int",
+        "label": "Fan-out kept outputs",
+        "help": "Mark when the count of non-OP_RETURN outputs is at least this.",
+    },
+    {
+        "key": "fanout_inputs_max",
+        "type": "int",
+        "label": "Fan-out inputs",
+        "help": "Mark only when the input count is this number or less.",
+    },
+    {
+        "key": "rejectdustspray",
+        "type": "bool",
+        "label": "Dust spray",
+        "help": "Mark a transaction with many outputs under a sat line. Off leaves it unmarked.",
+    },
+    {
+        "key": "dustspray_count_min",
+        "type": "int",
+        "label": "Dust spray outputs",
+        "help": "Mark when at least this many outputs are above zero and under the sat line.",
+    },
+    {
+        "key": "dustspray_sat_max",
+        "type": "int",
+        "label": "Dust spray sat line",
+        "help": "An output under this many sats counts toward the spray.",
+    },
+    {
+        "key": "rejectopreturnstack",
+        "type": "bool",
+        "label": "Several OP_RETURNs",
+        "help": "Mark a transaction with at least this many OP_RETURN outputs.",
+    },
+    {
+        "key": "opreturn_count_min",
+        "type": "int",
+        "label": "OP_RETURN count",
+        "help": "Mark when the OP_RETURN output count is at least this.",
+    },
+    {
+        "key": "rejectheavytapscript",
+        "type": "bool",
+        "label": "Heavy tapscript",
+        "help": "Mark a revealed tapscript at least this many bytes.",
+    },
+    {
+        "key": "tapscript_bytes_min",
+        "type": "int",
+        "label": "Tapscript bytes",
+        "help": "Mark when the largest revealed tapscript is at least this many bytes.",
+    },
+    {
+        "key": "fakeoutput_count_min",
+        "type": "int",
+        "label": "Dust P2WSH count",
+        "help": "Mark when at least this many same-value P2WSH outputs are at or under the sat cap.",
+    },
+    {
+        "key": "fakeoutput_sat_max",
+        "type": "int",
+        "label": "Dust P2WSH sats",
+        "help": "A P2WSH output at or under this many sats can join the run.",
+    },
+    {
+        "key": "whitelist_empty_runestone",
+        "type": "bool",
+        "label": "Empty runestone",
+        "help": "Leave an OP_RETURN OP_13 with no payload unmarked. A runestone with bytes stays spam.",
+    },
+    {
+        "key": "whitelist_commitment_32",
+        "type": "bool",
+        "label": "32-byte commitment",
+        "help": "Leave one 32-byte OP_RETURN unmarked by the data-carrier check.",
+    },
+    {
+        "key": "whitelist_empty_opreturn",
+        "type": "bool",
+        "label": "Empty OP_RETURN",
+        "help": "Leave one OP_RETURN with no payload unmarked by the data-carrier check.",
+    },
+    {
+        "key": "whitelist_consolidation",
+        "type": "bool",
+        "label": "Consolidation",
+        "help": "Leave a many-input, few-output transaction unmarked by dust, dust spray, and fan-out.",
+    },
+    {
+        "key": "consolidation_inputs_min",
+        "type": "int",
+        "label": "Consolidation inputs",
+        "help": "The transaction needs at least this many inputs.",
+    },
+    {
+        "key": "consolidation_outputs_max",
+        "type": "int",
+        "label": "Consolidation outputs",
+        "help": "The transaction may have at most this many kept outputs.",
+    },
+    {"key": "dust_sift", "type": "bool", "label": "Sift dust line", "help": "When on, Sift marks outputs under its own dust line. The node keeps its own dust rule either way."},
+    {"key": "minfee_sift", "type": "bool", "label": "Sift minimum fee", "help": "When on, Sift marks transactions under its fee line."},
+    {"key": "rejectopreturntext", "type": "bool", "label": "OP_RETURN text", "help": "Mark a short text OP_RETURN that is not one of the named rows."},
+    {"key": "rejectopreturndata", "type": "bool", "label": "OP_RETURN data", "help": "Mark a short binary OP_RETURN that is not one of the named rows."},
+    {"key": "rejectswapmemo", "type": "bool", "label": "Swap memo", "help": "Mark an OP_RETURN that starts with =: or to:."},
+    {"key": "rejectbabylon", "type": "bool", "label": "Babylon tag", "help": "Mark an OP_RETURN that starts with bbn1."},
+    {"key": "rejectcoredao", "type": "bool", "label": "Core DAO tag", "help": "Mark an OP_RETURN that starts with SAT+."},
+    {"key": "rejectbareinscription", "type": "bool", "label": "Bare inscription", "help": "Mark a script that drops an ord tag with OP_2DROP and is not inside OP_FALSE OP_IF."},
+    {"key": "rejectmanysigs", "type": "bool", "label": "Many signatures", "help": "Mark a transaction whose signature-check count is at least the slider."},
+    {"key": "manysigs_min", "type": "int", "label": "Signature checks", "help": "Mark when the signature-check count is at least this."},
+    {"key": "whitelist_dust_sweep", "type": "bool", "label": "Dust sweep", "help": "Leave a transaction whose only output is a short OP_RETURN unmarked by the data-carrier check."},
+    {"key": "dustsweep_payload_max", "type": "int", "label": "Dust sweep bytes", "help": "The single OP_RETURN may have at most this many payload bytes."},
+    {"key": "whitelist_package_paid", "type": "bool", "label": "Package-paid", "help": "Leave a low-fee transaction unmarked when a descendant has lifted the package to the fee line."},
+    {"key": "package_paid_sat_vb", "type": "int", "label": "Package fee", "help": "The descendant package must be at least this many sat/vB."},
     {
         "key": "datacarrier",
         "type": "bool",
@@ -212,21 +307,78 @@ RULE_FIELDS = (
 )
 
 
+# Knots defaults. A line is included when Sift has it on, or the value is not this default.
+KNOTS_CONF = {
+    "rejectparasites": "1",
+    "rejecttokens": "1",
+    "rejectdeadbranches": "1",
+    "datacarrier": "1",
+    "datacarriersize": "83",
+    "datacarriercost": "1",
+    "datacarrierfullcount": "1",
+    "bytespersigop": "20",
+    "maxscriptsize": "1650",
+    "maxtxlegacysigops": "2500",
+    "permitbareanchor": "1",
+    "permitbaredatacarrier": "0",
+    "permitbaremultisig": "0",
+    "permitbarepubkey": "0",
+}
+
+
+def _conf_bool(value: bool) -> str:
+    return "1" if value else "0"
+
+
+def bitcoin_conf_lines(rules: dict) -> list[str]:
+    """Knots lines for settings Sift has on, or that differ from the Knots default.
+
+    Sift-only checks are left out. Knots does not have a switch for them.
+    """
+    lines = []
+    bool_keys = (
+        "rejectparasites", "rejecttokens", "rejectdeadbranches", "datacarrier",
+        "datacarrierfullcount", "permitbareanchor", "permitbaredatacarrier",
+        "permitbaremultisig", "permitbarepubkey",
+    )
+    for key in bool_keys:
+        if not isinstance(rules.get(key), bool):
+            continue
+        written = _conf_bool(rules[key])
+        if rules[key] is True or written != KNOTS_CONF[key]:
+            lines.append(f"{key}={written}")
+    for key in ("datacarriersize", "datacarriercost", "bytespersigop", "maxscriptsize", "maxtxlegacysigops"):
+        value = rules.get(key)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            continue
+        if rules.get("datacarrier") is False and key == "datacarriersize":
+            continue
+        text = str(int(value))
+        if text != KNOTS_CONF[key]:
+            lines.append(f"{key}={text}")
+    dust = rules.get("dust_sat_per_kvb")
+    if rules.get("dust_sift") is not False and isinstance(dust, int) and dust > 0:
+        lines.append(f"dustrelayfee={dust / 100_000_000:.8f}")
+    fee = rules.get("minfeerate_sat_vb")
+    if rules.get("minfee_sift") is True and isinstance(fee, (int, float)) and not isinstance(fee, bool) and fee > 0:
+        lines.append(f"minrelaytxfee={float(fee) / 100_000:.8f}")
+    return lines
+
+
 def knots_notice(whitelist_on: bool) -> dict | None:
     """Operator text for the Knots startup lines. None when the whitelist is off."""
     if not whitelist_on:
         return None
     return {
-        "title": "Knots has to admit this package before the whitelist can mine it",
+        "title": "A strict node accepts this package only by local insertion",
         "summary": (
-            "The whitelist only decides which transactions this program leaves "
-            "unmarked. Knots rejects the zero-fee parent until the lines below "
-            "are set. Knots reads them at startup. This page does not write them "
-            "and does not restart the node. After they are on, the node relays "
-            "every transaction the wider policy accepts. The sidecar keeps the "
-            "ones outside the whitelist out of the block only. A transaction that "
-            "contains dust cannot be deprioritized: Knots refuses that priority "
-            "change, so a dusty parent stays at its normal mining score."
+            "The node stays on its normal strict settings. This page does not "
+            "write bitcoin.conf and does not restart the node. The public peer "
+            "port still rejects the zero-fee parent. The sidecar inserts that "
+            "parent with sendrawtransaction and ignore_rejects, then the child. "
+            "Other sidecars receive that signed pair on their own port and do "
+            "the same insertion, so their miners can include the exit. "
+            "submitpackage is not used until it keeps ignore_rejects."
         ),
         "lines": list(KNOTS_FOR_ARK_WHITELIST),
     }

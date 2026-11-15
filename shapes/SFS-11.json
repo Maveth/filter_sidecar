@@ -1,0 +1,18 @@
+{
+  "id": "SFS-11",
+  "kind": "spam",
+  "carry": "definition",
+  "title": "JSON token message",
+  "from": "cesspool",
+  "code": "a short JSON OP_RETURN containing \"p\": in spamcore.py",
+  "schema": {
+    "opreturn": {
+      "json": true,
+      "fields": [
+        "p",
+        "op"
+      ]
+    }
+  },
+  "slug": "json-token"
+}

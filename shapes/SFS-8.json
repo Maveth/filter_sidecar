@@ -1,0 +1,13 @@
+{
+  "id": "SFS-8",
+  "kind": "spam",
+  "carry": "definition",
+  "title": "Bare inscription",
+  "from": "cesspool",
+  "code": false,
+  "schema": {
+    "script": "pushes, including the ord tag, dropped with OP_2DROP",
+    "not": "wrapped in OP_FALSE OP_IF"
+  },
+  "slug": "bare-inscription"
+}

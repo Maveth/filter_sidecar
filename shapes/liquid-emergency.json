@@ -8,5 +8,6 @@
   "schema": {
     "script": "11-of-15 fails, then 2-of-3 after 4032 blocks"
   },
-  "note": "Likely Liquid's own recovery. The layout can be copied, so it is not a whitelist. It is not enabled as spam either."
+  "note": "Likely Liquid's own recovery. The layout can be copied, so it is not a whitelist. It is not enabled as spam either.",
+  "slug": "liquid-emergency"
 }

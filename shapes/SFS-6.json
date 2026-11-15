@@ -1,0 +1,16 @@
+{
+  "id": "SFS-6",
+  "kind": "spam",
+  "carry": "definition",
+  "title": "Dead branch",
+  "from": "cesspool",
+  "code": "OP_FALSE OP_IF and OP_1 OP_NOTIF in spamcore.py",
+  "schema": {
+    "patterns": [
+      "OP_FALSE OP_IF",
+      "OP_1 OP_NOTIF"
+    ]
+  },
+  "note": "A branch decided by a signature or a witness item is not this row.",
+  "slug": "dead-branch"
+}

@@ -1,0 +1,16 @@
+{
+  "id": "WLS-9",
+  "kind": "whitelist",
+  "carry": "definition",
+  "title": "Rootstock PowPeg flyover",
+  "from": "cesspool",
+  "code": false,
+  "schema": {
+    "witness": "the PowPeg script this chain has revealed since the fork",
+    "keys": 13,
+    "threshold_seen": "5 of 9",
+    "prefix": "32 bytes dropped unused"
+  },
+  "note": "Any other script stays spam. The script is not checked against an address Rootstock publishes.",
+  "slug": "powpeg-flyover"
+}

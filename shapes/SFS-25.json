@@ -1,0 +1,20 @@
+{
+  "id": "SFS-25",
+  "kind": "spam",
+  "carry": "definition",
+  "title": "Heavy data",
+  "from": "gbt-rules flt:side-data",
+  "code": "rejectheavytapscript in spamcore.py",
+  "schema": {
+    "any": [
+      {
+        "opreturn_bytes_min": 84
+      },
+      {
+        "largest_tapscript_bytes_min": 521
+      }
+    ]
+  },
+  "note": "The switch marks a revealed tapscript at least this many bytes. A large OP_RETURN is the data-carrier mark.",
+  "slug": "data-heavy"
+}

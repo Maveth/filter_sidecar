@@ -191,6 +191,16 @@ def _is_taproot_control_block(item: bytes) -> bool:
     return (item[0] & 0xFE) == 0xC0
 
 
+def _tapscript(items: list[bytes]) -> Optional[bytes]:
+    """The revealed tapscript, when this witness spends a taproot script path."""
+    if not items:
+        return None
+    stack = items[:-1] if items[-1][:1] == b"\x50" else items
+    if len(stack) >= 2 and _is_taproot_control_block(stack[-1]):
+        return stack[-2]
+    return None
+
+
 def _witness_script(items: list[bytes]) -> Optional[bytes]:
     """The witness item that is a script, or None when the witness has no script.
 
@@ -253,6 +263,123 @@ CONSENSUS_MAX_BLOCK_SIGOPS = 80_000
 ANCHOR_SCRIPT = bytes.fromhex("51024e73")
 
 
+def _opreturn_payload(script: bytes) -> bytes | None:
+    if not script or script[0] != 0x6A or script == b"\x6a\x5d":
+        return None
+    try:
+        return script[1:] if len(script) == 1 else _pushed(script)
+    except ValueError:
+        return None
+
+
+def _pushed(script: bytes) -> bytes:
+    out = b""
+    off = 1
+    while off < len(script):
+        push, off = _push_len(script, off)
+        out += script[off:off + push]
+        off += push
+    return out
+
+
+def _printable(payload: bytes) -> bool:
+    return bool(payload) and all(byte in (9, 10, 13) or 32 <= byte <= 126 for byte in payload)
+
+
+def _named_opreturn(script: bytes, flags: dict) -> str | None:
+    payload = _opreturn_payload(script)
+    if payload is None:
+        return None
+    if flags.get("rejectswapmemo") and (payload.startswith(b"=:") or payload.startswith(b"to:")):
+        return "swapmemo"
+    if flags.get("rejectbabylon") and payload.startswith(b"bbn1"):
+        return "babylon"
+    if flags.get("rejectcoredao") and payload.startswith(b"SAT+"):
+        return "coredao"
+    named = payload.startswith((b"omni", b"CNTRPRTY", b"stamp:", b"{", b"bbn1", b"SAT+", b"=:", b"to:"))
+    if named or len(payload) > 83:
+        return None
+    if flags.get("rejectopreturntext") and _printable(payload):
+        return "opreturntext"
+    if flags.get("rejectopreturndata") and payload and not _printable(payload):
+        return "opreturndata"
+    return None
+
+
+def _bare_inscription(script: bytes) -> bool:
+    return b"ord" in script and script.endswith(b"\x6d") and b"\x00\x63" not in script
+
+
+def _is_dust_sweep(outputs: list[tuple[int, bytes]], flags: dict) -> bool:
+    """One OP_RETURN and nothing else, with a short payload."""
+    if flags.get("whitelist_dust_sweep") is not True or len(outputs) != 1:
+        return False
+    payload = _opreturn_payload(outputs[0][1])
+    if payload is None:
+        return False
+    cap = flags.get("dustsweep_payload_max")
+    if not isinstance(cap, int) or cap < 0:
+        cap = 4
+    return len(payload) <= cap
+
+
+def _output_whitelisted(script: bytes, reason: str, flags: dict) -> bool:
+    """True when an enabled whitelist keeps this output's spam reason."""
+    if reason == "runestone" and flags.get("whitelist_empty_runestone") is True and script == b"\x6a\x5d":
+        return True
+    if reason not in ("datacarrier", "datacarriersize") or not script or script[0] != 0x6A:
+        return False
+    try:
+        payload = _datacarrier_bytes(script, False)
+    except ValueError:
+        return False
+    if flags.get("whitelist_commitment_32") is True and payload == 32:
+        return True
+    if flags.get("whitelist_empty_opreturn") is True and payload == 0 and script != b"\x6a\x5d":
+        return True
+    return False
+
+
+def _is_consolidation(vin: int, outputs: list[tuple[int, bytes]], flags: dict) -> bool:
+    """Many inputs and few kept outputs. It does not cancel a runestone or a token."""
+    if flags.get("whitelist_consolidation") is not True:
+        return False
+    need = flags.get("consolidation_inputs_min")
+    cap = flags.get("consolidation_outputs_max")
+    if not isinstance(need, int) or need <= 0:
+        need = 25
+    if not isinstance(cap, int) or cap < 0:
+        cap = 3
+    kept = sum(1 for _value, script in outputs if not script or script[:1] != b"\x6a")
+    return vin >= need and kept <= cap
+
+
+def tx_is_ark_whitelist(raw: bytes, flags: dict, fee: int | None = None) -> bool:
+    """True when this tx is the Ark parent the whitelist keeps."""
+    if flags.get("whitelist_ark_zero_anchor") is False or not raw or len(raw) < 10:
+        return False
+    try:
+        off = 4
+        if off + 2 <= len(raw) and raw[off] == 0x00 and raw[off + 1] == 0x01:
+            off += 2
+        _vin, off = _read_varint(raw, off)
+        for _ in range(_vin):
+            off += 36
+            slen, off = _read_varint(raw, off)
+            off += slen + 4
+        vout, off = _read_varint(raw, off)
+        outputs = []
+        for _ in range(vout):
+            value = int.from_bytes(raw[off:off + 8], "little")
+            off += 8
+            slen, off = _read_varint(raw, off)
+            outputs.append((value, raw[off:off + slen]))
+            off += slen
+    except Exception:
+        return False
+    return _ark_zero_fee_parent(raw, outputs, fee)
+
+
 def _ark_zero_fee_parent(raw: bytes, outputs: list[tuple[int, bytes]], fee: int | None) -> bool:
     """True for the low-fee Ark parent this pool wants, not today's high-fee rounds."""
     if fee != 0 or len(raw) < 4:
@@ -287,7 +414,66 @@ def clamp_template_request(req: dict, flags: dict) -> dict:
     return out
 
 
-def tx_reject_reason(raw: bytes, flags: dict, fee: int | None = None, weight: int | None = None, sigops: int | None = None) -> Optional[str]:
+def package_from_entry(entry: dict) -> tuple[int | None, int | None]:
+    """Descendant package fee and vsize when a child is paying for this transaction."""
+    if not isinstance(entry, dict) or (entry.get("descendantcount") or 0) <= 1:
+        return None, None
+    fees = (entry.get("fees") or {}).get("descendant")
+    vsize = entry.get("descendantsize")
+    if fees is None or not isinstance(vsize, int) or vsize <= 0:
+        return None, None
+    return int(round(float(fees) * 100_000_000)), vsize
+
+
+def package_clears_fee(flags: dict, package_fee_sat: int | None, package_vsize: int | None) -> bool:
+    """The child's package meets the fee line, so this parent's own fee is not the mark."""
+    if flags.get("whitelist_package_paid") is not True:
+        return False
+    if not isinstance(package_fee_sat, int) or not isinstance(package_vsize, int) or package_vsize <= 0:
+        return False
+    floor = flags.get("package_paid_sat_vb")
+    if isinstance(floor, bool) or not isinstance(floor, (int, float)) or floor <= 0:
+        floor = 1
+    mark = flags.get("minfeerate_sat_vb")
+    need = float(floor)
+    if isinstance(mark, (int, float)) and not isinstance(mark, bool) and float(mark) > need:
+        need = float(mark)
+    return package_fee_sat / package_vsize >= need
+
+
+def whitelist_items(
+    raw: bytes, flags: dict, fee: int | None = None, weight: int | None = None,
+    sigops: int | None = None, package_fee_sat: int | None = None,
+    package_vsize: int | None = None, descendant_count: int = 0,
+) -> int:
+    """1 for a single whitelist transaction, 2 when its child is in the mempool."""
+    if tx_is_ark_whitelist(raw, flags, fee):
+        return 2 if descendant_count > 1 else 1
+    quiet = dict(flags)
+    touched = False
+    for key, value in list(quiet.items()):
+        if key.startswith("whitelist_") and value is True:
+            quiet[key] = False
+            touched = True
+    if not touched:
+        return 0
+    before = tx_reject_reason(
+        raw, quiet, fee=fee, weight=weight, sigops=sigops,
+        package_fee_sat=package_fee_sat, package_vsize=package_vsize,
+    )
+    after = tx_reject_reason(
+        raw, flags, fee=fee, weight=weight, sigops=sigops,
+        package_fee_sat=package_fee_sat, package_vsize=package_vsize,
+    )
+    if before and before != after:
+        return 1
+    return 0
+
+
+def tx_reject_reason(
+    raw: bytes, flags: dict, fee: int | None = None, weight: int | None = None,
+    sigops: int | None = None, package_fee_sat: int | None = None, package_vsize: int | None = None,
+) -> Optional[str]:
     """Return a short reason to drop this tx, or None to keep it."""
     if not raw or len(raw) < 10:
         return None
@@ -318,34 +504,47 @@ def tx_reject_reason(raw: bytes, flags: dict, fee: int | None = None, weight: in
         # Ark package parent: version 3, miner fee exactly 0, one zero
         # pay-to-anchor. The child spends that anchor and pays the small fee.
         # A high-fee transaction is not this shape, even if it has an anchor.
-        # Knots admits that parent only with the startup lines in
-        # settings.KNOTS_FOR_ARK_WHITELIST. This flag does not change the node.
+        # The node stays strict. This parent is inserted with sendrawtransaction
+        # and ignore_rejects, not by loosening Knots. This flag does not change the node.
         if flags.get("whitelist_ark_zero_anchor") is not False and _ark_zero_fee_parent(raw, outputs, fee):
             return None
+        sat_max = flags.get("fakeoutput_sat_max")
+        count_min = flags.get("fakeoutput_count_min")
+        if not isinstance(sat_max, int) or sat_max <= 0:
+            sat_max = 546
+        if not isinstance(count_min, int) or count_min <= 0:
+            count_min = 3
         for value, script in outputs:
             reason = _script_spam(script, True, flags)
-            if reason:
+            if reason is None:
+                reason = _named_opreturn(script, flags)
+            if reason is None and flags.get("rejectbareinscription") and _bare_inscription(script):
+                reason = "bareinscription"
+            if reason in ("datacarrier", "datacarriersize", "opreturntext", "opreturndata") and _is_dust_sweep(outputs, flags):
+                reason = None
+            if reason and not _output_whitelisted(script, reason, flags):
                 return reason
             if (
                 flags.get("rejectfakeoutputs")
                 and len(script) == 34
                 and script[0] == 0x00
                 and script[1] == 0x20
-                and value <= 546
+                and value <= sat_max
             ):
                 if p2wsh_value is None or value == p2wsh_value:
                     p2wsh_value = value
                     p2wsh_same += 1
-        if flags.get("rejectfakeoutputs") and p2wsh_same >= 3:
+        if flags.get("rejectfakeoutputs") and p2wsh_same >= count_min:
             return "fakeoutput"
         dust_rate = flags.get("dust_sat_per_kvb")
-        if isinstance(dust_rate, int) and dust_rate > 0:
+        if flags.get("dust_sift") is not False and isinstance(dust_rate, int) and dust_rate > 0:
             for value, script in outputs:
                 if flags.get("permitephemeral") is True and value == 0 and script == ANCHOR_SCRIPT:
                     continue
-                if value < _dust_threshold(script, dust_rate):
+                if value < _dust_threshold(script, dust_rate) and not _is_consolidation(vin, outputs, flags):
                     return "dust"
         witness_scripts = []
+        tapscript_len = 0
         lock_off = off
         if segwit:
             for _ in range(vin):
@@ -355,6 +554,9 @@ def tx_reject_reason(raw: bytes, flags: dict, fee: int | None = None, weight: in
                     item_len, off = _read_varint(raw, off)
                     items.append(raw[off:off + item_len])
                     off += item_len
+                revealed = _tapscript(items)
+                if revealed is not None:
+                    tapscript_len = max(tapscript_len, len(revealed))
                 script = _witness_script(items)
                 if script is not None:
                     witness_scripts.append(script)
@@ -399,9 +601,42 @@ def tx_reject_reason(raw: bytes, flags: dict, fee: int | None = None, weight: in
                 effective_vsize = (weight + data_bytes * cost) / 4
                 if fee < rate * effective_vsize:
                     return "datacarriercost"
-        if isinstance(rate, (int, float)) and rate > 0 and isinstance(fee, int) and isinstance(weight, int) and weight > 0:
-            if fee < float(rate) * max(1, weight / 4):
+        if flags.get("minfee_sift") is not False and isinstance(rate, (int, float)) and rate > 0 and isinstance(fee, int) and isinstance(weight, int) and weight > 0:
+            if fee < float(rate) * max(1, weight / 4) and not package_clears_fee(flags, package_fee_sat, package_vsize):
                 return "minfeerate"
+        # One or two inputs paying many kept outputs. OP_RETURN is not kept.
+        # Coinjoins have more inputs than the cap, so they are not this shape.
+        if flags.get("rejectfanout"):
+            need = flags.get("fanout_outputs_min")
+            cap = flags.get("fanout_inputs_max")
+            if isinstance(need, int) and need > 0 and isinstance(cap, int) and cap > 0:
+                kept = sum(1 for _value, script in outputs if not script or script[:1] != b"\x6a")
+                if vin <= cap and kept >= need and not _is_consolidation(vin, outputs, flags):
+                    return "fanout"
+        # Many outputs under a sat line. A zero output is an anchor, not spray.
+        if flags.get("rejectdustspray"):
+            need = flags.get("dustspray_count_min")
+            ceiling = flags.get("dustspray_sat_max")
+            if isinstance(need, int) and need > 0 and isinstance(ceiling, int) and ceiling > 0:
+                tiny = sum(1 for value, script in outputs if script[:1] != b"\x6a" and 0 < value < ceiling)
+                if tiny >= need and not _is_consolidation(vin, outputs, flags):
+                    return "dustspray"
+        if flags.get("rejectopreturnstack"):
+            need = flags.get("opreturn_count_min")
+            if isinstance(need, int) and need > 1:
+                count = sum(1 for _value, script in outputs if script[:1] == b"\x6a")
+                if count >= need:
+                    return "opreturnstack"
+        if flags.get("rejectmanysigs") and isinstance(sigops, int):
+            need = flags.get("manysigs_min")
+            if not isinstance(need, int) or need <= 0:
+                need = 100
+            if sigops >= need:
+                return "manysigs"
+        if flags.get("rejectheavytapscript"):
+            need = flags.get("tapscript_bytes_min")
+            if isinstance(need, int) and need > 0 and tapscript_len >= need:
+                return "heavytapscript"
     except (ValueError, IndexError):
         return None
     return None

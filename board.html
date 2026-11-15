@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sift</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; font: 16px/1.45 sans-serif; background: #121416; color: #eee; }
+  .sticky-top { position: sticky; top: 0; z-index: 4; background: #121416; }
+  header { display: flex; justify-content: space-between; gap: 1rem; align-items: center; padding: 0.8rem 1.2rem 0.2rem; }
+  #gear { background: transparent; color: #cde; border: 1px solid #456; border-radius: 8px; padding: 0.25rem 0.4rem; line-height: 0; cursor: pointer; }
+  #gear.on { background: #243; color: #beb; }
+  #settings label { display: block; margin: 0.45rem 0; }
+  #settings .stack { display: flex; flex-direction: column; align-items: flex-start; gap: 0.45rem; }
+  #settings pre { max-height: 9rem; }
+  h1 { font-size: 2rem; margin: 0; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  h1 .mark { color: #9ad; flex: none; }
+  header .tag { margin: 0; color: #9ab; font-size: 1rem; font-weight: normal; }
+  a { color: #9ad; }
+  main { padding: 0.8rem 1.2rem 2.5rem; max-width: 76rem; }
+  .note { color: #aaa; }
+  .card { border: 1px solid #2c3238; border-radius: 8px; padding: 0.7rem 0.85rem; margin: 0.55rem 0; }
+  .card h2 { font-size: 1rem; margin: 0 0 0.25rem; }
+  .meta { color: #9ab; font-size: 0.85rem; }
+  .badge { display: inline-block; border-radius: 999px; padding: 0.05rem 0.45rem; font-size: 0.75rem; margin-left: 0.35rem; }
+  .live { background: #243; color: #beb; }
+  .off { background: #2a2a2a; color: #aaa; }
+  .pkg { background: #342; color: #cdb; }
+  pre { background: #0e1012; padding: 0.45rem 0.6rem; overflow: auto; border-radius: 6px; font-size: 0.82rem; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { text-align: left; padding: 0.35rem 0.4rem; border-bottom: 1px solid #2a2a2a; vertical-align: top; }
+  code { font-family: ui-monospace, monospace; }
+  .err { color: #f99; }
+  .sticky-counts { padding: 0.15rem 1.2rem 0.35rem; }
+  .counts { display: flex; gap: 0.7rem; margin: 0.45rem 0; }
+  .count { flex: 1 1 0; min-width: 0; background: #1c2126; color: inherit; border: 1px solid #2c3238; border-radius: 8px; padding: 0.7rem 0.85rem; text-align: center; cursor: pointer; font: inherit; }
+  .count.on { background: #243044; border-color: #456; }
+  .count .num { font-size: 1.45rem; margin-top: 0.15rem; }
+  .count .lbl { color: #9ab; font-size: 0.82rem; }
+  .count .bar { color: #666; padding: 0 0.35rem; }
+  .count .bad { color: #e88; }
+  .home { max-width: 36rem; margin-top: 0.2rem; }
+  .home p { margin: 0.45rem 0; }
+  .shape { display: grid; grid-template-columns: 8.2rem minmax(7rem, 11rem) minmax(0, 1fr) 4.6rem; gap: 0.4rem 0.8rem; align-items: start; }
+  .shape .actions { display: flex; flex-direction: column; align-items: stretch; gap: 0.3rem; }
+  .shape .act-row { display: flex; gap: 0.3rem; align-items: center; }
+  .shape .id { color: #9ab; font-family: ui-monospace, monospace; }
+  .shape .layer { color: #667; font-size: 0.78rem; }
+  .shape .layer .here { color: #beb; }
+  .shape button, .pop button { font: inherit; color: #eee; background: #1c2126; border: 1px solid #456; border-radius: 6px; padding: 0.2rem 0.55rem; cursor: pointer; }
+  .shape button.on { background: #243; color: #beb; border-color: #486; }
+  .shape button.lock { padding: 0.15rem 0.28rem; line-height: 0; }
+  .shape button:disabled { cursor: default; }
+  .shape button.test:disabled { opacity: 0.35; color: #888; background: #16191c; border-color: #333; }
+  .shape .dial { display: flex; align-items: center; gap: 0.45rem; }
+  .shape .dial input { flex: 1; }
+  .shape pre { margin: 0.3rem 0 0; max-height: 7.5rem; }
+  .shape .src { text-align: right; font-size: 0.82rem; }
+  .pop { border: 0; border-radius: 10px; background: #161b20; color: #e8e8e8; padding: 1rem; max-width: 36rem; }
+  .pop::backdrop { background: #000a; }
+  .pop label { display: block; margin: 0.45rem 0; }
+  .pop .tx { font-family: ui-monospace, monospace; font-size: 0.82rem; }
+  @media (max-width: 900px) { .shape { grid-template-columns: 1fr; } .shape .src { text-align: left; } }
+</style>
+</head>
+<body>
+<div class="sticky-top">
+<header>
+  <h1><svg class="mark" viewBox="0 0 32 32" width="32" height="32" aria-hidden="true"><rect x="4" y="6" width="24" height="3" rx="1" fill="currentColor"/><rect x="7" y="12" width="18" height="3" rx="1" fill="currentColor"/><rect x="10" y="18" width="12" height="3" rx="1" fill="currentColor"/><rect x="13" y="24" width="6" height="3" rx="1" fill="currentColor"/></svg> Sift <span class="tag">a spam filter and whitelist sidecar for Bitcoin nodes · blake2b</span></h1>
+  <span id="ver" class="tag"></span>
+  <button type="button" id="gear" aria-label="Settings"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.8 7.8 0 0 0 .1-1 7.8 7.8 0 0 0-.1-1l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1L15 2h-4l-.3 2.9a7 7 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.8 7.8 0 0 0-.1 1 7.8 7.8 0 0 0 .1 1l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.7 1L11 22h4l.3-2.9a7 7 0 0 0 1.7-1l2.4 1 2-3.4zM13 15.5A3.5 3.5 0 1 1 16.5 12 3.5 3.5 0 0 1 13 15.5z"/></svg></button>
+</header>
+<div class="sticky-counts">
+  <div id="counts" class="counts"></div>
+  <div id="counts2" class="counts"></div>
+</div>
+</div>
+<main>
+  <p id="status" class="note">Loading</p>
+  <section id="home" hidden></section>
+  <section id="spam"></section>
+  <section id="whitelist" hidden></section>
+  <section id="peers" hidden></section>
+  <section id="sent" hidden></section>
+  <section id="stopped" hidden></section>
+  <section id="settings" hidden>
+    <form id="local">
+      <label><input type="checkbox" name="search_port_plus_2"> Search Bitcoin peers at their port plus 2</label>
+      <label><input type="checkbox" name="accept_packages"> Accept signed whitelist packages from peers</label>
+      <label><input type="checkbox" name="import_received"> Import shapes a peer sends. They stay off until you turn the row on.</label>
+      <p><button type="submit">Save</button></p>
+    </form>
+    <div class="stack">
+      <h2>Your shape</h2>
+      <textarea id="own-shape" rows="5" placeholder='{"id":"my-shape","kind":"spam","title":"My shape","schema":{}}'></textarea>
+      <p><button type="button" id="import-shape">Import</button> <button type="button" id="pr-shape">Pull request</button></p>
+      <p class="note">An imported shape stays on this node. It is not offered to peers. Pull request writes shapes/&lt;id&gt;.json for the public repo.</p>
+      <pre id="own-result" hidden></pre>
+      <button type="button" id="shapes-btn">Download shapes</button>
+      <pre id="shapes-result" hidden></pre>
+      <button type="button" id="node-conf-btn">Show current bitcoin.conf</button>
+      <pre id="node-conf" hidden></pre>
+      <button type="button" id="conf-btn">Sample from settings</button>
+      <pre id="conf" hidden></pre>
+      <p id="conf-save" hidden><button type="button" id="download-conf">Download</button> <span class="note">Optional. Replacing bitcoin.conf with this file makes these the node's defaults. Sift does not write that file.</span></p>
+    </div>
+    <h2>Log <button type="button" id="refresh-tail">Refresh</button></h2>
+    <pre id="log-tail">Loading</pre>
+    <h2>Inbox</h2>
+    <pre id="inbox-tail">Loading</pre>
+    <p id="set-status" class="note"></p>
+  </section>
+  <dialog id="opt-dialog" class="pop">
+    <form method="dialog" id="opt-form">
+      <h2 id="opt-title">Options</h2>
+      <div id="opt-body"></div>
+      <p id="opt-err" class="err"></p>
+      <div class="act-row">
+        <button value="cancel" class="secondary">Close</button>
+        <button value="save" id="opt-save">Save</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="test-dialog" class="pop">
+    <h2 id="test-title">Test</h2>
+    <p id="test-body" class="note">Checking this mempool.</p>
+    <div id="test-list"></div>
+    <form method="dialog"><button value="close">Close</button></form>
+  </dialog>
+</main>
+<script>
+const sections = ["home", "spam", "whitelist", "peers", "sent", "stopped"];
+function openTab(tab) {
+  document.getElementById("settings").hidden = true;
+  document.getElementById("gear").classList.remove("on");
+  for (const name of sections) {
+    document.getElementById(name).hidden = name !== tab;
+  }
+  for (const card of document.querySelectorAll(".count")) {
+    card.classList.toggle("on", card.dataset.tab === tab);
+  }
+}
+document.addEventListener("submit", async (event) => {
+  if (event.target.id !== "add-peer") return;
+  event.preventDefault();
+  const address = new FormData(event.target).get("address");
+  const response = await fetch("/api/peers", {
+    method: "POST",
+    headers: {"content-type": "application/json"},
+    body: JSON.stringify({op: "add", address}),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    document.getElementById("status").textContent = payload.error || "Could not add that peer";
+    return;
+  }
+  show(await fetch("/api/board").then((next) => next.json()));
+  openTab("peers");
+});
+
+document.addEventListener("click", async (event) => {
+  const search = event.target.closest("#search-peers");
+  if (search) {
+    await fetch("/api/peers", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({op: "search"})});
+    document.getElementById("status").textContent = "Search started. New peers show up after the handshake.";
+    return;
+  }
+  const del = event.target.closest("[data-act=delete-peer]");
+  if (!del) return;
+  await fetch("/api/peers", {
+    method: "POST",
+    headers: {"content-type": "application/json"},
+    body: JSON.stringify({op: "delete", address: del.dataset.address}),
+  });
+  show(await fetch("/api/board").then((next) => next.json()));
+  openTab("peers");
+});
+
+document.getElementById("gear").addEventListener("click", async () => {
+  for (const name of sections) document.getElementById(name).hidden = true;
+  document.getElementById("settings").hidden = false;
+  document.getElementById("gear").classList.add("on");
+  const local = await fetch("/api/local").then((response) => response.json());
+  const form = document.getElementById("local");
+  form.search_port_plus_2.checked = local.search_port_plus_2 !== false;
+  form.accept_packages.checked = local.accept_packages === true;
+  form.import_received.checked = local.import_received === true;
+  await refreshTail();
+  document.getElementById("node-conf").hidden = true;
+  document.getElementById("conf").hidden = true;
+});
+
+document.getElementById("local").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.target;
+  const response = await fetch("/api/local", {
+    method: "POST",
+    headers: {"content-type": "application/json"},
+    body: JSON.stringify({
+      search_port_plus_2: form.search_port_plus_2.checked,
+      accept_packages: form.accept_packages.checked,
+      import_received: form.import_received.checked,
+    }),
+  });
+  const saved = await response.json();
+  if (!response.ok) {
+    document.getElementById("set-status").textContent = saved.error || "Save failed.";
+    return;
+  }
+  form.search_port_plus_2.checked = saved.search_port_plus_2 !== false;
+  form.accept_packages.checked = saved.accept_packages === true;
+  form.import_received.checked = saved.import_received === true;
+  document.getElementById("set-status").textContent = "Saved.";
+});
+
+async function refreshTail() {
+  const tail = await fetch("/api/tail").then((response) => response.json());
+  document.getElementById("log-tail").textContent = tail.log || "No log yet.";
+  document.getElementById("inbox-tail").textContent = tail.inbox || "No inbox yet.";
+}
+
+document.getElementById("refresh-tail").addEventListener("click", () => refreshTail());
+
+function toggleBox(buttonId, boxId, load) {
+  const box = document.getElementById(boxId);
+  if (!box.hidden) {
+    box.hidden = true;
+    return;
+  }
+  load(box);
+}
+
+document.getElementById("import-shape").addEventListener("click", async () => {
+  const box = document.getElementById("own-result");
+  box.hidden = false;
+  let shape;
+  try {
+    shape = JSON.parse(document.getElementById("own-shape").value);
+  } catch (err) {
+    box.textContent = "That is not JSON.";
+    return;
+  }
+  const response = await fetch("/api/shapes/import", {
+    method: "POST",
+    headers: {"content-type": "application/json"},
+    body: JSON.stringify(shape),
+  });
+  const payload = await response.json();
+  box.textContent = payload.error || payload.summary || "Imported.";
+});
+
+document.getElementById("pr-shape").addEventListener("click", async () => {
+  const box = document.getElementById("own-result");
+  box.hidden = false;
+  let shape;
+  try {
+    shape = JSON.parse(document.getElementById("own-shape").value);
+  } catch (err) {
+    box.textContent = "Paste the shape JSON first.";
+    return;
+  }
+  const response = await fetch("/api/shapes/pr", {
+    method: "POST",
+    headers: {"content-type": "application/json"},
+    body: JSON.stringify({id: shape.id}),
+  });
+  const payload = await response.json();
+  box.textContent = payload.error || payload.summary || "Done.";
+});
+
+document.getElementById("shapes-btn").addEventListener("click", async () => {
+  const box = document.getElementById("shapes-result");
+  box.hidden = false;
+  box.textContent = "Comparing.";
+  const response = await fetch("/api/shapes", {method: "POST", headers: {"content-type": "application/json"}, body: "{}"});
+  const payload = await response.json();
+  box.textContent = payload.error || payload.summary || "Done.";
+});
+
+document.getElementById("node-conf-btn").addEventListener("click", () => {
+  toggleBox("node-conf-btn", "node-conf", async (box) => {
+    const tail = await fetch("/api/tail").then((response) => response.json());
+    box.hidden = false;
+    box.textContent = tail.node_conf || "No policy lines in this node's bitcoin.conf.";
+  });
+});
+
+document.getElementById("conf-btn").addEventListener("click", () => {
+  const box = document.getElementById("conf");
+  const save = document.getElementById("conf-save");
+  if (!box.hidden) {
+    box.hidden = true;
+    save.hidden = true;
+    return;
+  }
+  fetch("/api/meta").then((response) => response.json()).then((meta) => {
+    box.hidden = false;
+    save.hidden = false;
+    box.textContent = (meta.conf || []).length ? meta.conf.join("\n") : "None of the Knots settings are on or changed from the Knots default.";
+  });
+});
+
+document.getElementById("download-conf").addEventListener("click", () => {
+  const text = document.getElementById("conf").textContent || "";
+  const blob = new Blob([text + "\n"], {type: "text/plain"});
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "bitcoin.conf.sift";
+  link.click();
+  URL.revokeObjectURL(link.href);
+});
+
+document.addEventListener("click", (event) => {
+  const card = event.target.closest(".count");
+  if (!card || !card.dataset.tab) return;
+  openTab(card.dataset.tab);
+});
+
+let pageBoard = {spam: []};
+
+document.addEventListener("input", (event) => {
+  const dial = event.target.closest(".dial input");
+  if (!dial) return;
+  const shown = dial.parentElement.querySelector(".dial-val");
+  if (shown) shown.textContent = fmt(dial.value);
+});
+
+function shapeById(id) {
+  const rows = (pageBoard.spam || []).concat(pageBoard.whitelist || []);
+  return rows.find((row) => row.id === id);
+}
+
+function openOptions(row) {
+  document.getElementById("opt-title").textContent = row.title;
+  document.getElementById("opt-err").textContent = "";
+  document.getElementById("opt-body").innerHTML = (row.options || []).map((field) => {
+    if (field.type === "bool") {
+      return `<label><input type="checkbox" data-key="${esc(field.key)}" ${field.value ? "checked" : ""}> ${esc(field.label)}</label><p class="note">${esc(field.help || "")}</p>`;
+    }
+    return `<label>${esc(field.label)} <input type="number" data-key="${esc(field.key)}" data-kind="${esc(field.type)}" value="${esc(field.value ?? "")}"></label><p class="note">${esc(field.help || "")}</p>`;
+  }).join("");
+  const dialog = document.getElementById("opt-dialog");
+  dialog.dataset.shape = row.id;
+  dialog.showModal();
+}
+
+async function openTest(row, article) {
+  const dialog = document.getElementById("test-dialog");
+  document.getElementById("test-title").textContent = row.title;
+  document.getElementById("test-body").textContent = "Checking this mempool.";
+  document.getElementById("test-list").textContent = "";
+  dialog.showModal();
+  const body = {id: row.id};
+  const dial = article.querySelector(".dial input:not([data-slider])");
+  if (dial) body.sat_vb = Number(dial.value);
+  const sliders = sliderValues(article);
+  if (Object.keys(sliders).length) body.sliders = sliders;
+  try {
+    const response = await fetch("/api/test", {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      document.getElementById("test-body").textContent = payload.error || "The mempool could not be checked.";
+      return;
+    }
+    const extra = payload.more ? ` ${payload.more} more are not listed.` : "";
+    const pool = payload.mempool.toLocaleString();
+    const count = payload.count.toLocaleString();
+    if (!payload.brought_back) {
+      document.getElementById("test-body").textContent = payload.count
+        ? `${count} of ${pool} transactions in this mempool match this check.${extra}`
+        : `None of the ${pool} transactions in this mempool match this check.`;
+      document.getElementById("test-list").innerHTML = (payload.txids || []).map((txid) => `<div class="tx">${esc(txid)}</div>`).join("");
+      return;
+    }
+    const cleared = (payload.cleared || []).join(", ");
+    const onlyLine = payload.count
+      ? `${count} would be put back. This whitelist was the only mark${cleared ? ` (${cleared})` : ""}.${extra}`
+      : `None would be put back by this whitelist alone.`;
+    const alsoCount = payload.also_count || 0;
+    const alsoLine = alsoCount
+      ? ` ${alsoCount.toLocaleString()} match this whitelist and stay marked by another check. A whitelist package would be needed to put those back.`
+      : "";
+    document.getElementById("test-body").textContent = onlyLine + alsoLine;
+    const only = (payload.txids || []).map((txid) => `<div class="tx">${esc(txid)}</div>`).join("");
+    const also = (payload.also || []).map((row) => `<div class="tx">${esc(row.txid)} · still ${esc((row.remains || []).join(", "))}</div>`).join("");
+    document.getElementById("test-list").innerHTML = only + also;
+  } catch (err) {
+    document.getElementById("test-body").textContent = "The mempool could not be checked.";
+  }
+}
+
+document.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-shape]");
+  if (!button) return;
+  const article = button.closest("article");
+  if (button.dataset.act === "options") {
+    const row = shapeById(button.dataset.shape);
+    if (row) openOptions(row);
+    return;
+  }
+  if (button.dataset.act === "test") {
+    const row = shapeById(button.dataset.shape);
+    if (row) openTest(row, article);
+    return;
+  }
+  const say = (text) => {
+    let el = article.querySelector(".err");
+    if (!el) {
+      el = document.createElement("p");
+      el.className = "err";
+      article.appendChild(el);
+    }
+    el.textContent = text;
+  };
+  const body = {id: button.dataset.shape};
+  const sliders = sliderValues(article);
+  if (Object.keys(sliders).length) body.sliders = sliders;
+  if (button.dataset.act === "active") {
+    body.active = button.dataset.next === "true";
+    const row = shapeById(button.dataset.shape);
+    const dial = article.querySelector(".dial input:not([data-slider])");
+    if (row && row.control === "raise" && body.active && dial && row.sat_vb == null) body.sat_vb = Number(dial.value);
+  }
+  if (button.dataset.act === "save") {
+    const sliders = sliderValues(article);
+    if (Object.keys(sliders).length) body.sliders = sliders;
+    const dial = article.querySelector(".dial input:not([data-slider])");
+    if (dial) body.sat_vb = Number(dial.value);
+    if (!body.sliders && body.sat_vb == null) {
+      say("Nothing to save.");
+      return;
+    }
+  }
+  try {
+    const response = await fetch("/api/shape", {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      say(payload.error || "Save failed");
+      return;
+    }
+    show(await fetch("/api/board").then((next) => next.json()));
+  } catch (err) {
+    say("Save failed");
+  }
+});
+
+function esc(value) {
+  return String(value ?? "").replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+}
+
+function badge(row) {
+  if (row.carry === "package") return '<span class="badge pkg">package</span>';
+  if (row.live) return '<span class="badge live">live</span>';
+  return '<span class="badge off">catalog</span>';
+}
+
+function cards(rows) {
+  return rows.map((row) => `
+    <article class="card">
+      <h2>${esc(row.title)} <code>${esc(row.id)}</code>${badge(row)}</h2>
+      <p class="meta">${esc(row.from)}${row.rule ? " · rule " + esc(row.rule) : ""}</p>
+      <pre>${esc(JSON.stringify(row.schema))}</pre>
+      ${row.note ? `<p class="note">${esc(row.note)}</p>` : ""}
+    </article>`).join("");
+}
+
+function fmt(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return Number.isInteger(n) ? String(n) : String(Math.round(n * 1000) / 1000);
+}
+
+function activeButton(row) {
+  if (row.control === "locked") return `<button type="button" class="on" disabled>Active</button>`;
+  if (row.control === "bool") {
+    const on = row.active ? " on" : "";
+    return `<button type="button" class="${on}" data-shape="${esc(row.id)}" data-act="active" data-next="${row.active ? "false" : "true"}">${row.active ? "Active" : "Off"}</button>`;
+  }
+  if (row.control === "raise") {
+    const on = row.active ? " on" : "";
+    return `<button type="button" class="${on}" data-shape="${esc(row.id)}" data-act="active" data-next="${row.active ? "false" : "true"}">${row.active ? "Active" : "Off"}</button>`;
+  }
+  return `<button type="button" disabled>No switch</button>`;
+}
+
+function confLines(row) {
+  return (row.conf || []).map((item) => `<p class="meta">bitcoin.conf <code>${esc(item.line)}</code>${item.note ? " · " + esc(item.note) : ""}</p>`).join("");
+}
+
+function dialMax(floor) {
+  const base = floor == null || !Number.isFinite(Number(floor)) ? 1 : Number(floor);
+  return Math.max(base + 1, base < 3 ? 3 : base + 5);
+}
+
+function dialStart(row) {
+  const floor = Number(row.floor_sat_vb);
+  const current = Number(row.sat_vb);
+  const fallback = Number(row.default_sat_vb);
+  if (Number.isFinite(current) && current > floor) return current;
+  if (Number.isFinite(fallback) && fallback > floor) return fallback;
+  return Number.isFinite(floor) ? Math.round((floor + 0.1) * 10) / 10 : 1;
+}
+
+function raiseBox(row) {
+  if (row.control !== "raise") return "";
+  const floor = Number(row.floor_sat_vb);
+  const start = dialStart(row);
+  const max = Math.max(dialMax(floor), start);
+  const min = Number.isFinite(floor) ? Math.round((floor + 0.1) * 10) / 10 : 0.1;
+  let note = `Node ${fmt(row.node_sat_vb)} · Knots ${fmt(row.default_sat_vb)} · Sift ${row.sat_vb == null ? "none" : fmt(row.sat_vb)} sat/vB`;
+  if (row.below_default) note += ". This node is below the Knots default.";
+  return `<p class="meta">${esc(note)}</p>
+    <div class="dial"><input type="range" min="${esc(min)}" max="${esc(max)}" step="0.1" value="${esc(start)}" aria-label="Sift line in sat/vB"><span class="dial-val">${esc(fmt(start))}</span></div>
+    <p class="note">Sift on top of Knots. Raise only. Save stores the number.</p>`;
+}
+
+function sliderBox(row) {
+  if (!(row.sliders || []).length) return "";
+  const dials = row.sliders.map((slider) => `<label class="dial">${esc(slider.label)} <input type="range" data-slider="${esc(slider.key)}" min="${esc(slider.min)}" max="${esc(slider.max)}" step="${esc(slider.step || 1)}" value="${esc(slider.value)}"><span class="dial-val">${esc(slider.value)}</span></label>`).join("");
+  return dials;
+}
+
+function sliderValues(article) {
+  const values = {};
+  if (!article) return values;
+  for (const input of article.querySelectorAll("[data-slider]")) values[input.dataset.slider] = Number(input.value);
+  return values;
+}
+
+function layerOf(row) {
+  if (row.control === "locked") return "knots";
+  if (row.control === "raise" || row.owner === "node") return "node";
+  return "sift";
+}
+
+function layerLine(row) {
+  const here = layerOf(row);
+  return ["knots", "node", "sift"].map((name) => `<span class="${name === here ? "here" : ""}">${name}</span>`).join('<span class="bar"> | </span>');
+}
+
+function shortSource(row) {
+  const label = row.source_label || row.from || "";
+  if (label.startsWith("cesspool")) return "cesspool";
+  if (label.startsWith("gbt")) return "gbt";
+  if (label.startsWith("knots")) return "knots";
+  if (label === "ours" || label === "") return label || "";
+  return label.split(" ")[0];
+}
+
+const LOCK_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M7 10V7a5 5 0 0 1 10 0v3h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h1zm2 0h6V7a3 3 0 0 0-6 0v3z"/></svg>`;
+
+function shapeCards(rows) {
+  return rows.map((row) => {
+    const source = row.source_url
+      ? `<a href="${esc(row.source_url)}" title="${esc(row.source_url)}">${esc(shortSource(row))}</a>`
+      : esc(shortSource(row));
+    const lock = row.control === "locked"
+      ? `<button type="button" class="lock" disabled title="On in Knots. The rules file can still change it." aria-label="Locked">${LOCK_ICON}</button>`
+      : "";
+    const options = (row.options || []).length
+      ? `<button type="button" data-shape="${esc(row.id)}" data-act="options">Options</button>`
+      : "";
+    const test = row.test
+      ? `<button type="button" class="test" data-shape="${esc(row.id)}" data-act="test">Test</button>`
+      : `<button type="button" class="test" disabled>Test</button>`;
+    const save = (row.control === "raise" || (row.sliders || []).length)
+      ? `<button type="button" data-shape="${esc(row.id)}" data-act="save">Save</button>`
+      : "";
+    const also = (row.also || []).length ? `<p class="meta">Same switch as ${esc(row.also.join(", "))}.</p>` : "";
+    return `<article class="card shape">
+      <div class="actions">
+        <div class="act-row">${activeButton(row)}${lock}</div>
+        ${options}${test}${save}
+        <div class="layer">${layerLine(row)}</div>
+      </div>
+      <div class="who">
+        <div class="id">${esc(row.id)}</div>
+        <strong>${esc(row.title)}</strong>
+        ${also}
+        ${(row.exempt || []).length ? `<p class="meta">Whitelist ${esc(row.exempt.map((item) => item.title).join(", "))}</p>` : ""}
+        ${row.transfer === false ? `<p class="note">Not sent to peers.</p>` : ""}
+      </div>
+      <div>
+        ${confLines(row)}${raiseBox(row)}${sliderBox(row)}
+        <pre>${esc(JSON.stringify(row.schema))}</pre>
+      </div>
+      <div class="src">${source}</div>
+    </article>`;
+  }).join("");
+}
+
+function countCard(label, value, detail, tab) {
+  const shown = value === undefined || value === null ? "—" : value;
+  const extra = detail ? `<div class="lbl">${esc(detail)}</div>` : "";
+  return `<button type="button" class="count" data-tab="${esc(tab)}"><div class="lbl">${esc(label)}</div><div class="num">${shown}</div>${extra}</button>`;
+}
+
+document.getElementById("opt-form").addEventListener("submit", async (event) => {
+  if (event.submitter && event.submitter.value !== "save") return;
+  event.preventDefault();
+  const dialog = document.getElementById("opt-dialog");
+  const options = {};
+  for (const input of document.querySelectorAll("#opt-body input")) {
+    options[input.dataset.key] = input.type === "checkbox" ? input.checked : Number(input.value);
+  }
+  const err = document.getElementById("opt-err");
+  try {
+    const response = await fetch("/api/shape", {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify({id: dialog.dataset.shape, options}),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      err.textContent = payload.error || "Save failed";
+      return;
+    }
+    dialog.close();
+    show(await fetch("/api/board").then((next) => next.json()));
+  } catch (error) {
+    err.textContent = "Save failed";
+  }
+});
+
+function show(board) {
+  pageBoard = board;
+  const openName = sections.find((name) => {
+    const section = document.getElementById(name);
+    return section && !section.hidden;
+  }) || "home";
+  const counts = board.counts || {};
+  const spam = board.spam || [];
+  const catalogSpam = spam.filter((row) => row.catalog !== false);
+  const spamOn = catalogSpam.filter((row) => row.live);
+  const onNode = spamOn.filter((row) => row.owner === "node").length;
+  const onSide = spamOn.filter((row) => row.owner === "sidecar").length;
+  const whitelistOn = (board.whitelist || []).filter((row) => row.live).length;
+  const pkgIn = (board.received && board.received.peers || []).reduce((sum, peer) => sum + (Number(peer.packages) || 0), 0);
+  const pkgOut = (board.sent || []).filter((row) => row.parent && row.child).length;
+  const peers = board.peers || [];
+  const peerDirs = (row) => row.directions || (row.direction ? [row.direction] : []);
+  const peersIn = peers.filter((row) => row.accept && peerDirs(row).includes("in")).length;
+  const peersOut = peers.filter((row) => row.accept && peerDirs(row).includes("out")).length;
+  const tx = counts.mempool == null ? "—" : esc(counts.mempool);
+  const blocked = counts.blocked == null ? "—" : esc(counts.blocked);
+  document.getElementById("counts").innerHTML = [
+    countCard("TX in mempool", `${tx}<span class="bar">|</span><span class="bad">🚫 ${blocked}</span>`, "total | blocked", "home"),
+    countCard("Recently blocked", counts.total_blocked == null ? "—" : esc(counts.total_blocked), "", "stopped"),
+    countCard("peer in/out", `${esc(peersIn)}<span class="bar">|</span>${esc(peersOut)}`, "in | out", "peers"),
+  ].join("");
+  document.getElementById("counts2").innerHTML = [
+    countCard("Spam shapes", `${esc(catalogSpam.length)}<span class="bar">|</span>${esc(onNode)}<span class="bar">|</span>${esc(onSide)}`, "shapes | node | sift", "spam"),
+    countCard("Whitelist", `${esc((board.whitelist || []).length)}<span class="bar">|</span>0<span class="bar">|</span>${esc(whitelistOn)}`, "shapes | node | sift", "whitelist"),
+    countCard("Packages", `${esc(pkgIn)}<span class="bar">|</span>${esc(pkgOut)}`, "in | out", "sent"),
+  ].join("");
+  openTab(openName);
+  const received = (board.received && board.received.peers || []).map((peer) =>
+    `${esc(peer.name)} sent ${esc(peer.spam)} spam shapes and ${esc(peer.whitelist)} whitelist rows. ${esc(peer.packages)} had signed transactions. ${esc(peer.enabled)} are enabled.`
+  ).join(" ");
+  document.getElementById("spam").innerHTML = shapeCards(spam);
+  document.getElementById("whitelist").innerHTML = shapeCards(board.whitelist || []);
+  const mine = board.self && board.self.listen
+    ? `<p class="meta">This one is ${esc(board.self.name)} at ${esc(board.self.listen)}, protocol ${esc(board.self.proto)}, catalog ${esc(board.self.catalog)}, commit ${esc(board.self.commit || "")}.</p>`
+    : "";
+  const manual = new Set(board.manual_peers || []);
+  const local = board.local || {};
+  const peerRows = (board.peers || []).map((peer) => {
+    const del = manual.has(peer.address)
+      ? `<button type="button" data-act="delete-peer" data-address="${esc(peer.address)}">Delete</button>`
+      : "";
+    return `<tr><td>${esc(peer.address)}</td><td>${esc(peer.name)}</td><td>${esc((peer.directions || [peer.direction]).filter(Boolean).join(" "))}</td><td>${esc(peer.proto)}</td><td>${esc(peer.catalog)}</td><td>${esc(peer.commit || "")}</td><td>${esc((peer.carries || []).join(" "))}</td><td>${peer.accept ? "accepted" : esc(peer.reason || "rejected")}</td><td>${del}</td></tr>`;
+  }).join("");
+  const added = (board.manual_peers || []).filter((address) => !(board.peers || []).some((peer) => peer.address === address));
+  const waiting = added.map((address) => `<tr><td>${esc(address)}</td><td></td><td></td><td></td><td></td><td></td><td></td><td>added</td><td><button type="button" data-act="delete-peer" data-address="${esc(address)}">Delete</button></td></tr>`).join("");
+  const peerTable = `${mine}
+    <form id="add-peer"><input name="address" placeholder="host:port" aria-label="Peer address"> <button type="submit">Add peer</button> <button type="button" id="search-peers">Search port + 2</button></form>
+    <p class="note">${local.search_port_plus_2 === false ? "Port plus 2 search is off." : "Search dials this node's outbound Bitcoin peers at their port plus 2."} Learning sidecars from other sidecars is not built. ${local.accept_packages ? "Signed packages from peers are kept." : "Signed packages are not accepted. Shape lists still are."} ${local.import_received ? "Import is on. A received shape stays off until you turn its row on." : "Import is off. A downloaded shape stays in the inbox."}</p>
+    ${(board.peers || []).length || added.length ? `<table><tr><th>Address</th><th>Name</th><th>Direction</th><th>Protocol</th><th>Catalog</th><th>Commit</th><th>Carries</th><th>Handshake</th><th></th></tr>${peerRows}${waiting}</table>` : `<p>${esc(board.peers_note)}</p>`}`;
+  document.getElementById("peers").innerHTML = peerTable;
+  const sent = board.sent.length
+    ? `<table><tr><th>When</th><th>Shape</th><th>To</th><th>Parent</th><th>Child</th></tr>${board.sent.map((row) => `<tr><td>${esc(row.when)}</td><td>${esc(row.id)}</td><td>${esc(row.to)}</td><td><code>${esc(row.parent)}</code></td><td><code>${esc(row.child)}</code></td></tr>`).join("")}</table>`
+    : `<p>${esc(board.sent_note)}</p>`;
+  document.getElementById("sent").innerHTML = sent;
+  const reasonRows = board.stopped.by_reason.map((row) => `<tr><td>${esc(row.count)}</td><td>${esc(row.reason)}</td></tr>`).join("");
+  const recent = board.stopped.recent.map((row) => `<tr><td><code>${esc(row.txid)}</code></td><td>${esc(row.reason)}</td></tr>`).join("");
+  document.getElementById("stopped").innerHTML = `
+    <p class="note">${board.stopped.total} transactions marked out of the template. The mark is a mining fee delta. The transactions stay in the mempool.</p>
+    <table><tr><th>Count</th><th>Reason</th></tr>${reasonRows}</table>
+    <h2>Latest</h2>
+    <table><tr><th>Transaction</th><th>Reason</th></tr>${recent}</table>`;
+  document.getElementById("status").textContent = "";
+}
+
+function showVersion(info) {
+  const el = document.getElementById("ver");
+  if (!el || !info || !info.commit) return;
+  el.textContent = info.github && info.same === false
+    ? `${info.commit} · GitHub main is ${info.github}`
+    : info.commit;
+  el.title = info.same
+    ? "This copy matches GitHub main."
+    : "This copy and GitHub main differ. Start9, a custom compile, and a Linux checkout each update their own way.";
+}
+
+fetch("/api/version").then((response) => response.json()).then(showVersion).catch(() => {});
+
+fetch("/api/board").then((response) => response.json()).then(show).catch(() => {
+  document.getElementById("status").textContent = "Could not load the page";
+  document.getElementById("status").className = "err";
+});
+</script>
+</body>
+</html>

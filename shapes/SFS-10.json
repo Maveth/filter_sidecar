@@ -1,0 +1,20 @@
+{
+  "id": "SFS-10",
+  "kind": "spam",
+  "carry": "definition",
+  "title": "Swap memo",
+  "from": "cesspool",
+  "code": false,
+  "schema": {
+    "opreturn_prefixes": [
+      "=:",
+      "to:"
+    ],
+    "examples": [
+      "=:BTC.BTC:",
+      "to:USDT(BSC):"
+    ]
+  },
+  "note": "Fits an 83-byte OP_RETURN, so stock Knots relays it.",
+  "slug": "swap-memo"
+}

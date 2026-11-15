@@ -1,0 +1,14 @@
+{
+  "id": "SFS-5",
+  "kind": "spam",
+  "carry": "definition",
+  "title": "Fake multisig keys",
+  "from": "cesspool",
+  "code": "more than 10 pubkey pushes in spamcore.py",
+  "schema": {
+    "unsigned_keys_min": 11,
+    "per": "script"
+  },
+  "note": "Plumb counts a key as signed only when a signature in the spend verifies against it. This catalog does not do that check yet. A 2-of-3 and an 11-of-15 federation spend are the cases that must stay out of this row.",
+  "slug": "fake-multisig"
+}

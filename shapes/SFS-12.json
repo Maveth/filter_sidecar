@@ -1,0 +1,12 @@
+{
+  "id": "SFS-12",
+  "kind": "spam",
+  "carry": "definition",
+  "title": "Omni",
+  "from": "cesspool",
+  "code": "omni prefix in spamcore.py",
+  "schema": {
+    "opreturn_prefix": "omni"
+  },
+  "slug": "omni"
+}

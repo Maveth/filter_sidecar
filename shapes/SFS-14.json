@@ -1,0 +1,17 @@
+{
+  "id": "SFS-14",
+  "kind": "spam",
+  "carry": "definition",
+  "title": "Core DAO staking tag",
+  "from": "cesspool",
+  "code": false,
+  "schema": {
+    "opreturn_prefix": "SAT+",
+    "payload_bytes": [
+      52,
+      80
+    ],
+    "also": "a P2WSH payment output"
+  },
+  "slug": "core-dao-tag"
+}

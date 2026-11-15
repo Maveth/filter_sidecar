@@ -38,24 +38,14 @@ Set `rpc_url` and either `cookie_file` or `rpc_user` / `rpc_password`. Leave `dr
 python3 ui.py rules.json
 ```
 
-Opens `http://127.0.0.1:8092/` on this machine only. The page edits that rules file. The sidecar picks the file up on its next poll. The page does not write `bitcoin.conf` and it does not restart Knots.
+Opens `http://192.168.1.195:8093/` on the LAN. That page shows the spam catalog, the whitelist, an empty peer list, sent whitelist packages, and the transactions the sidecar has marked. `/settings` edits the rules file. The sidecar picks that file up on its next poll. The page does not write `bitcoin.conf` and it does not restart Knots. Port 8092 is already taken on this host.
 
-The same fields are the options a later Start9 config form should expose. The Ark whitelist is one of them. Turning it on shows the Knots startup lines that node still needs. Those lines are also `KNOTS_FOR_ARK_WHITELIST` in `settings.py`.
+The same fields are the options a later Start9 config form should expose. The Ark whitelist is one of them. Turning it on shows how a strict node still accepts that shape. Those steps are `KNOTS_FOR_ARK_WHITELIST` in `settings.py`. The node is not switched into a loose policy.
 
 ## Ark whitelist
 
 `whitelist_ark_zero_anchor` leaves one shape unmarked: version 3, miner fee exactly 0, one zero-value pay-to-anchor. The child pays the fee and is not itself whitelisted. Any other fee is still judged as dust.
 
-Knots rejects that parent until it is started with:
+The node stays on its normal strict settings. It does not need `permitephemeral=anchor,-send,dust`, `subdustfeepenalty=0`, or `mempooltruc=enforce` for this exit. A strict node rejects the parent on the public peer port. `ignore_rejects` is an RPC argument, so the sidecar inserts the parent with `sendrawtransaction` and that list, then inserts the child with a normal `sendrawtransaction` once the parent is in the mempool. `submitpackage` cannot carry the list. That call is the later replacement only after Knots keeps `ignore_rejects` through `SingleInPackageAccept`.
 
-```
-permitephemeral=anchor,-send,dust
-subdustfeepenalty=0
-mempooltruc=enforce
-minrelaytxfee=0.00000100
-dustrelayfee=0.00003000
-```
-
-Knots 29.4.3 defaults the first three differently (`anchor,-send,-dust`, penalty on, `mempooltruc=accept`) and uses a 1 sat/vB relay floor. `dustrelayfee` is already the 3 sat/vB default. Keep the sidecar dust line at `3000` so they match.
-
-These are startup settings for the whole node. After they are on, the node relays every transaction the wider policy accepts. The sidecar can keep the ones outside the whitelist out of the block. It cannot stop that relay. Knots also refuses a priority change on a transaction that contains dust, so the mining penalty does not land on this parent. The whitelist is what leaves it unmarked.
+Other sidecars are not visible on the Bitcoin peer list. Each sidecar listens on its Knots port plus 2 and says hello with protocol 1 and the catalog version. A matching protocol is accepted. The catalog version is reported and does not have to match. Spam shapes and whitelist packages are not exchanged yet. What a sidecar exchanges, once that part is built, does not change what this node relays.
