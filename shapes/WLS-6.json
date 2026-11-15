@@ -4,12 +4,12 @@
   "carry": "definition",
   "title": "Lightning anchor sweep",
   "from": "cesspool",
-  "code": false,
   "schema": {
     "spends": "lightning anchor outputs",
     "only_output": "opreturn",
     "opreturn_payload_bytes_max": 3
   },
   "note": "Padding so a one-input sweep reaches the 65-byte minimum. Knots refuses a transaction whose only output is an OP_RETURN, so this stays off the public port. It is not an insert package.",
-  "slug": "lightning-anchor-sweep"
+  "slug": "lightning-anchor-sweep",
+  "checker": null
 }

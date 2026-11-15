@@ -4,11 +4,11 @@
   "carry": "definition",
   "title": "OP_RETURN text",
   "from": "cesspool",
-  "code": false,
   "schema": {
     "opreturn": "text",
     "payload_bytes_max": 83,
     "not": "a named prefix in this catalog"
   },
-  "slug": "opreturn-text"
+  "slug": "opreturn-text",
+  "checker": "opreturn-text"
 }

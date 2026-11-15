@@ -4,11 +4,11 @@
   "carry": "definition",
   "title": "ACME in P2WSH",
   "from": "cesspool",
-  "code": false,
   "schema": {
     "tag": "ACME",
     "where": "the OLGA framing with stamp: replaced by ACME"
   },
   "note": "Four changed bytes walk past the stamp: check.",
-  "slug": "acme-p2wsh"
+  "slug": "acme-p2wsh",
+  "checker": null
 }

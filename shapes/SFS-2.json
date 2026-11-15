@@ -4,7 +4,6 @@
   "carry": "definition",
   "title": "Runestone",
   "from": "cesspool",
-  "code": "OP_RETURN OP_13 in spamcore.py",
   "schema": {
     "opreturn": {
       "next_opcode": "OP_13",
@@ -12,5 +11,6 @@
     }
   },
   "note": "Knots refuses this with -rejecttokens, so a strict node never hands it to the sidecar.",
-  "slug": "runestone"
+  "slug": "runestone",
+  "checker": "runestone"
 }

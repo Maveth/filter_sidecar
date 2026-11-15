@@ -4,7 +4,6 @@
   "carry": "definition",
   "title": "JSON token message",
   "from": "cesspool",
-  "code": "a short JSON OP_RETURN containing \"p\": in spamcore.py",
   "schema": {
     "opreturn": {
       "json": true,
@@ -14,5 +13,6 @@
       ]
     }
   },
-  "slug": "json-token"
+  "slug": "json-token",
+  "checker": "json-token"
 }

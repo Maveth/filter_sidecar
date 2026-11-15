@@ -4,9 +4,9 @@
   "carry": "definition",
   "title": "Unnamed output-script data",
   "from": "cesspool",
-  "code": false,
   "schema": {
     "output_script": "counted as data, and not one of the named output rows"
   },
-  "slug": "output-script-data"
+  "slug": "output-script-data",
+  "checker": null
 }

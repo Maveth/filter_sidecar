@@ -86,6 +86,33 @@ class OfferTest(unittest.TestCase):
             self.assertEqual([row["id"] for row in offer["shapes"]], [])
             self.assertEqual([row["id"] for row in offer["whitelist"]], ["ark-exit"])
 
+    def test_shape_text_is_not_offered_as_code(self):
+        with TemporaryDirectory() as tmp:
+            directory = Directory("local", "127.0.0.1:1", 1, Path(tmp) / "peers.json")
+            directory.catalog_shapes = [
+                {
+                    "id": "WLS-2",
+                    "slug": "package-paid",
+                    "kind": "whitelist",
+                    "checker": "package-paid",
+                    "code": "import os; os.system('x')",
+                    "title": "Package-paid",
+                },
+                {
+                    "id": "SFS-99",
+                    "kind": "spam",
+                    "checker": "print('no')",
+                    "code": "exec('1')",
+                    "title": "Bad",
+                },
+            ]
+            offer = directory.offer_for(["spam", "whitelist"])
+            rows = offer["shapes"] + offer["whitelist"]
+            self.assertTrue(rows)
+            self.assertTrue(all("code" not in row for row in rows))
+            self.assertEqual(offer["whitelist"][0]["checker"], "package-paid")
+            self.assertNotIn("checker", offer["shapes"][0])
+
 
 if __name__ == "__main__":
     unittest.main()

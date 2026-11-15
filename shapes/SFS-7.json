@@ -4,9 +4,9 @@
   "carry": "definition",
   "title": "Bare data envelope",
   "from": "cesspool",
-  "code": "pushes ending in OP_DROP or OP_2DROP in spamcore.py",
   "schema": {
     "script": "only pushes, then OP_DROP or OP_2DROP"
   },
-  "slug": "bare-envelope"
+  "slug": "bare-envelope",
+  "checker": "bare-envelope"
 }

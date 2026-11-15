@@ -4,7 +4,6 @@
   "carry": "definition",
   "title": "Small output",
   "from": "gbt-rules flt:side-small-output",
-  "code": false,
   "schema": {
     "outputs_under_1000_sat": {
       "min": 1,
@@ -13,5 +12,6 @@
     "dust_outputs": 0
   },
   "note": "Ordinary small payments and anchors. Shown, not marked.",
-  "slug": "small-output"
+  "slug": "small-output",
+  "checker": null
 }

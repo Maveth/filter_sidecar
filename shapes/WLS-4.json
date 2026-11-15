@@ -4,7 +4,6 @@
   "carry": "definition",
   "title": "Empty runestone",
   "from": "cesspool",
-  "code": false,
   "schema": {
     "opreturn": {
       "script_hex_prefix": "6a5d",
@@ -12,5 +11,6 @@
     }
   },
   "note": "OP_RETURN OP_13 and nothing after it. A real runestone, with bytes after OP_13, is spam.",
-  "slug": "empty-runestone"
+  "slug": "empty-runestone",
+  "checker": "empty-runestone"
 }

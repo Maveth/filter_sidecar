@@ -16,6 +16,7 @@ from pathlib import Path
 import board
 import hello
 import settings as ruleset
+import spamcore
 
 HERE = Path(__file__).resolve().parent
 SHAPES_URL = "https://raw.githubusercontent.com/Maveth/filter_sidecar/main/shapes"
@@ -60,7 +61,7 @@ def import_private_shape(shape: dict) -> dict:
         "carry": "definition",
         "title": title,
         "from": "local",
-        "code": False,
+        "checker": None,
         "schema": shape.get("schema") if isinstance(shape.get("schema"), dict) else {},
         "note": str(shape.get("note") or ""),
         "transfer": False,
@@ -119,6 +120,9 @@ def sync_shapes() -> dict:
         except Exception as exc:
             return {"error": f"Could not download {shape_id}: {exc}", "added": added}
         if not isinstance(shape, dict) or shape.get("id") != shape_id:
+            continue
+        shape = spamcore.sanitize_shape(shape)
+        if shape.get("id") != shape_id:
             continue
         catalog.setdefault("shapes", []).append(shape)
         (HERE / "shapes" / f"{shape_id}.json").write_text(json.dumps(shape, indent=2) + "\n")

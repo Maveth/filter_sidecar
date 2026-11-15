@@ -8,6 +8,56 @@ from __future__ import annotations
 import hashlib
 from typing import Optional
 
+# A shape file may name one of these. The function is compiled into this
+# program. A downloaded file that names anything else is stored and does not run.
+# Shape files are data. Nothing in this program executes text from one.
+CHECKERS = frozenset({
+    "ark-exit",
+    "package-paid",
+    "commitment-32",
+    "empty-runestone",
+    "empty-opreturn",
+    "dust-sweep",
+    "consolidation",
+    "cat21",
+    "runestone",
+    "counterparty",
+    "stamps",
+    "fake-multisig",
+    "dead-branch",
+    "bare-envelope",
+    "bare-inscription",
+    "json-token",
+    "omni",
+    "dust-p2wsh-run",
+    "dust-output",
+    "min-fee",
+    "fan-out",
+    "dust-spray",
+    "opreturn-stack",
+    "data-heavy",
+    "opreturn-text",
+    "opreturn-data",
+    "swap-memo",
+    "babylon-tag",
+    "core-dao-tag",
+    "many-sigs",
+})
+SHAPE_FIELDS = ("id", "slug", "kind", "carry", "title", "from", "schema", "note", "checker", "parent", "child")
+
+
+def sanitize_shape(shape: dict) -> dict:
+    """Keep data fields only. Drop a code string, or a checker this copy does not have."""
+    if not isinstance(shape, dict):
+        return {}
+    row = {key: shape[key] for key in SHAPE_FIELDS if key in shape}
+    if not isinstance(row.get("schema"), dict):
+        row.pop("schema", None)
+    checker = row.get("checker")
+    if not isinstance(checker, str) or checker not in CHECKERS:
+        row.pop("checker", None)
+    return row
+
 
 def _sha256d(data: bytes) -> bytes:
     return hashlib.sha256(hashlib.sha256(data).digest()).digest()

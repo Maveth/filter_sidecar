@@ -4,12 +4,12 @@
   "carry": "definition",
   "title": "BIP47 notification",
   "from": "cesspool",
-  "code": false,
   "schema": {
     "opreturn": {
       "payload_bytes": 80,
       "contents": "a blinded payment code"
     }
   },
-  "slug": "bip47-notice"
+  "slug": "bip47-notice",
+  "checker": null
 }

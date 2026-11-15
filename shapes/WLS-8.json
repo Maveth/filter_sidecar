@@ -4,11 +4,11 @@
   "carry": "definition",
   "title": "Dust sweep",
   "from": "cesspool",
-  "code": false,
   "schema": {
     "only_output": "opreturn",
     "opreturn_payload_bytes_max": 4
   },
   "note": "More than 4 bytes in that only output is spam, not this row.",
-  "slug": "dust-sweep"
+  "slug": "dust-sweep",
+  "checker": "dust-sweep"
 }

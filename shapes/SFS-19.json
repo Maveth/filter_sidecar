@@ -4,10 +4,10 @@
   "carry": "definition",
   "title": "Off-curve taproot key",
   "from": "cesspool",
-  "code": false,
   "schema": {
     "output": "taproot",
     "key": "not a valid curve point"
   },
-  "slug": "off-curve-taproot"
+  "slug": "off-curve-taproot",
+  "checker": null
 }

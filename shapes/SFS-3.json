@@ -4,7 +4,6 @@
   "carry": "definition",
   "title": "Counterparty",
   "from": "cesspool",
-  "code": "plaintext CNTRPRTY prefix only",
   "schema": {
     "opreturn": {
       "decrypt": "RC4 under the first input txid",
@@ -12,5 +11,6 @@
     }
   },
   "note": "The live check looks for the plaintext prefix. The chain form is encrypted, and Knots decrypts it.",
-  "slug": "counterparty"
+  "slug": "counterparty",
+  "checker": "counterparty"
 }

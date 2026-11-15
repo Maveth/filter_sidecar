@@ -7,7 +7,6 @@
       "carry": "package",
       "title": "Ark exit",
       "from": "ours",
-      "code": "parent only, in spamcore.py",
       "schema": {
         "parent": {
           "version": 3,
@@ -39,7 +38,8 @@
         }
       },
       "note": "The package is what moves between sidecars. Enabling it inserts the pair here and leaves it unmarked. It does not go out on the Bitcoin port. The child is part of the package and is not itself a whitelist shape.",
-      "slug": "ark-exit"
+      "slug": "ark-exit",
+      "checker": "ark-exit"
     },
     {
       "id": "WLS-3",
@@ -47,7 +47,6 @@
       "carry": "definition",
       "title": "32-byte commitment",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "opreturn": {
           "count": 1,
@@ -55,7 +54,8 @@
         }
       },
       "note": "OpenTimestamps, proof-of-reserves, and RGB use this length. The length is the match, not the contents. Leave it unmarked if the node already accepted it. No extra send.",
-      "slug": "commitment-32"
+      "slug": "commitment-32",
+      "checker": "commitment-32"
     },
     {
       "id": "WLS-4",
@@ -63,7 +63,6 @@
       "carry": "definition",
       "title": "Empty runestone",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "opreturn": {
           "script_hex_prefix": "6a5d",
@@ -71,7 +70,8 @@
         }
       },
       "note": "OP_RETURN OP_13 and nothing after it. A real runestone, with bytes after OP_13, is spam.",
-      "slug": "empty-runestone"
+      "slug": "empty-runestone",
+      "checker": "empty-runestone"
     },
     {
       "id": "WLS-5",
@@ -79,14 +79,14 @@
       "carry": "definition",
       "title": "Empty OP_RETURN",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "opreturn": {
           "count": 1,
           "payload_bytes": 0
         }
       },
-      "slug": "empty-opreturn"
+      "slug": "empty-opreturn",
+      "checker": "empty-opreturn"
     },
     {
       "id": "WLS-6",
@@ -94,14 +94,14 @@
       "carry": "definition",
       "title": "Lightning anchor sweep",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "spends": "lightning anchor outputs",
         "only_output": "opreturn",
         "opreturn_payload_bytes_max": 3
       },
       "note": "Padding so a one-input sweep reaches the 65-byte minimum. Knots refuses a transaction whose only output is an OP_RETURN, so this stays off the public port. It is not an insert package.",
-      "slug": "lightning-anchor-sweep"
+      "slug": "lightning-anchor-sweep",
+      "checker": null
     },
     {
       "id": "WLS-7",
@@ -109,14 +109,14 @@
       "carry": "definition",
       "title": "Pay-to-anchor sweep",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "spends": "pay-to-anchor outputs",
         "only_output": "opreturn",
         "opreturn_payload_bytes_max": 4
       },
       "note": "Same class as the Lightning sweep. Not the Ark exit. The Ark exit is a version-3 parent plus a paying child, and that one is the package.",
-      "slug": "p2a-sweep"
+      "slug": "p2a-sweep",
+      "checker": null
     },
     {
       "id": "WLS-8",
@@ -124,13 +124,13 @@
       "carry": "definition",
       "title": "Dust sweep",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "only_output": "opreturn",
         "opreturn_payload_bytes_max": 4
       },
       "note": "More than 4 bytes in that only output is spam, not this row.",
-      "slug": "dust-sweep"
+      "slug": "dust-sweep",
+      "checker": "dust-sweep"
     },
     {
       "id": "WLS-9",
@@ -138,7 +138,6 @@
       "carry": "definition",
       "title": "Rootstock PowPeg flyover",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "witness": "the PowPeg script this chain has revealed since the fork",
         "keys": 13,
@@ -146,7 +145,8 @@
         "prefix": "32 bytes dropped unused"
       },
       "note": "Any other script stays spam. The script is not checked against an address Rootstock publishes.",
-      "slug": "powpeg-flyover"
+      "slug": "powpeg-flyover",
+      "checker": null
     },
     {
       "id": "WLS-10",
@@ -154,13 +154,13 @@
       "carry": "definition",
       "title": "Consolidation",
       "from": "gbt-rules flt:side-sweep",
-      "code": false,
       "schema": {
         "inputs_min": 25,
         "outputs_max": 3
       },
       "note": "Shrinks the coin set. Leave it unmarked. It is not a package and it does not get a fee credit yet.",
-      "slug": "consolidation"
+      "slug": "consolidation",
+      "checker": "consolidation"
     },
     {
       "id": "SFS-1",
@@ -168,12 +168,12 @@
       "carry": "definition",
       "title": "CAT-21",
       "from": "knots -rejectparasites",
-      "code": "locktime 21 in spamcore.py",
       "schema": {
         "locktime": 21
       },
       "note": "This is the whole Knots check. The schema page only names the option and points at inscriptions. Inscriptions are a different row.",
-      "slug": "cat21"
+      "slug": "cat21",
+      "checker": "cat21"
     },
     {
       "id": "SFS-2",
@@ -181,7 +181,6 @@
       "carry": "definition",
       "title": "Runestone",
       "from": "cesspool",
-      "code": "OP_RETURN OP_13 in spamcore.py",
       "schema": {
         "opreturn": {
           "next_opcode": "OP_13",
@@ -189,7 +188,8 @@
         }
       },
       "note": "Knots refuses this with -rejecttokens, so a strict node never hands it to the sidecar.",
-      "slug": "runestone"
+      "slug": "runestone",
+      "checker": "runestone"
     },
     {
       "id": "SFS-3",
@@ -197,7 +197,6 @@
       "carry": "definition",
       "title": "Counterparty",
       "from": "cesspool",
-      "code": "plaintext CNTRPRTY prefix only",
       "schema": {
         "opreturn": {
           "decrypt": "RC4 under the first input txid",
@@ -205,7 +204,8 @@
         }
       },
       "note": "The live check looks for the plaintext prefix. The chain form is encrypted, and Knots decrypts it.",
-      "slug": "counterparty"
+      "slug": "counterparty",
+      "checker": "counterparty"
     },
     {
       "id": "SFS-4",
@@ -213,12 +213,12 @@
       "carry": "definition",
       "title": "OLGA stamps",
       "from": "cesspool",
-      "code": "stamp: prefix in spamcore.py",
       "schema": {
         "tag": "stamp:",
         "where": "a length prefix, then the tag, then consecutive P2WSH output hashes"
       },
-      "slug": "stamps"
+      "slug": "stamps",
+      "checker": "stamps"
     },
     {
       "id": "SFS-5",
@@ -226,13 +226,13 @@
       "carry": "definition",
       "title": "Fake multisig keys",
       "from": "cesspool",
-      "code": "more than 10 pubkey pushes in spamcore.py",
       "schema": {
         "unsigned_keys_min": 11,
         "per": "script"
       },
       "note": "Plumb counts a key as signed only when a signature in the spend verifies against it. This catalog does not do that check yet. A 2-of-3 and an 11-of-15 federation spend are the cases that must stay out of this row.",
-      "slug": "fake-multisig"
+      "slug": "fake-multisig",
+      "checker": "fake-multisig"
     },
     {
       "id": "SFS-6",
@@ -240,7 +240,6 @@
       "carry": "definition",
       "title": "Dead branch",
       "from": "cesspool",
-      "code": "OP_FALSE OP_IF and OP_1 OP_NOTIF in spamcore.py",
       "schema": {
         "patterns": [
           "OP_FALSE OP_IF",
@@ -248,7 +247,8 @@
         ]
       },
       "note": "A branch decided by a signature or a witness item is not this row.",
-      "slug": "dead-branch"
+      "slug": "dead-branch",
+      "checker": "dead-branch"
     },
     {
       "id": "SFS-7",
@@ -256,11 +256,11 @@
       "carry": "definition",
       "title": "Bare data envelope",
       "from": "cesspool",
-      "code": "pushes ending in OP_DROP or OP_2DROP in spamcore.py",
       "schema": {
         "script": "only pushes, then OP_DROP or OP_2DROP"
       },
-      "slug": "bare-envelope"
+      "slug": "bare-envelope",
+      "checker": "bare-envelope"
     },
     {
       "id": "SFS-8",
@@ -268,12 +268,12 @@
       "carry": "definition",
       "title": "Bare inscription",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "script": "pushes, including the ord tag, dropped with OP_2DROP",
         "not": "wrapped in OP_FALSE OP_IF"
       },
-      "slug": "bare-inscription"
+      "slug": "bare-inscription",
+      "checker": "bare-inscription"
     },
     {
       "id": "SFS-9",
@@ -281,12 +281,12 @@
       "carry": "definition",
       "title": "Unnamed witness data",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "input_data": "counted by policy, and not one of the named witness rows"
       },
       "note": "A holding row. It is not a check until the bytes have a name.",
-      "slug": "witness-unnamed"
+      "slug": "witness-unnamed",
+      "checker": null
     },
     {
       "id": "SFS-10",
@@ -294,7 +294,6 @@
       "carry": "definition",
       "title": "Swap memo",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "opreturn_prefixes": [
           "=:",
@@ -306,7 +305,8 @@
         ]
       },
       "note": "Fits an 83-byte OP_RETURN, so stock Knots relays it.",
-      "slug": "swap-memo"
+      "slug": "swap-memo",
+      "checker": "swap-memo"
     },
     {
       "id": "SFS-11",
@@ -314,7 +314,6 @@
       "carry": "definition",
       "title": "JSON token message",
       "from": "cesspool",
-      "code": "a short JSON OP_RETURN containing \"p\": in spamcore.py",
       "schema": {
         "opreturn": {
           "json": true,
@@ -324,7 +323,8 @@
           ]
         }
       },
-      "slug": "json-token"
+      "slug": "json-token",
+      "checker": "json-token"
     },
     {
       "id": "SFS-12",
@@ -332,11 +332,11 @@
       "carry": "definition",
       "title": "Omni",
       "from": "cesspool",
-      "code": "omni prefix in spamcore.py",
       "schema": {
         "opreturn_prefix": "omni"
       },
-      "slug": "omni"
+      "slug": "omni",
+      "checker": "omni"
     },
     {
       "id": "SFS-13",
@@ -344,7 +344,6 @@
       "carry": "definition",
       "title": "Babylon staking tag",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "opreturn_prefix": "bbn1",
         "payload_bytes": [
@@ -354,7 +353,8 @@
         "also": "a taproot payment output"
       },
       "note": "The payment output is ordinary. The tag is the spam.",
-      "slug": "babylon-tag"
+      "slug": "babylon-tag",
+      "checker": "babylon-tag"
     },
     {
       "id": "SFS-14",
@@ -362,7 +362,6 @@
       "carry": "definition",
       "title": "Core DAO staking tag",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "opreturn_prefix": "SAT+",
         "payload_bytes": [
@@ -371,7 +370,8 @@
         ],
         "also": "a P2WSH payment output"
       },
-      "slug": "core-dao-tag"
+      "slug": "core-dao-tag",
+      "checker": "core-dao-tag"
     },
     {
       "id": "SFS-15",
@@ -379,12 +379,12 @@
       "carry": "definition",
       "title": "Stacks commitment",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "opreturn": "a Stacks block commitment",
         "exempt": "the all-zero burn output beside it"
       },
-      "slug": "stacks-commit"
+      "slug": "stacks-commit",
+      "checker": null
     },
     {
       "id": "SFS-16",
@@ -392,14 +392,14 @@
       "carry": "definition",
       "title": "BIP47 notification",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "opreturn": {
           "payload_bytes": 80,
           "contents": "a blinded payment code"
         }
       },
-      "slug": "bip47-notice"
+      "slug": "bip47-notice",
+      "checker": null
     },
     {
       "id": "SFS-17",
@@ -407,13 +407,13 @@
       "carry": "definition",
       "title": "ACME in P2WSH",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "tag": "ACME",
         "where": "the OLGA framing with stamp: replaced by ACME"
       },
       "note": "Four changed bytes walk past the stamp: check.",
-      "slug": "acme-p2wsh"
+      "slug": "acme-p2wsh",
+      "checker": null
     },
     {
       "id": "SFS-18",
@@ -421,13 +421,13 @@
       "carry": "definition",
       "title": "Dust P2WSH run",
       "from": "cesspool",
-      "code": "fakeoutput_count_min same-value P2WSH outputs in spamcore.py",
       "schema": {
         "outputs_min": 3,
         "type": "P2WSH",
         "same_value_sat_max": 546
       },
-      "slug": "dust-p2wsh-run"
+      "slug": "dust-p2wsh-run",
+      "checker": "dust-p2wsh-run"
     },
     {
       "id": "SFS-19",
@@ -435,12 +435,12 @@
       "carry": "definition",
       "title": "Off-curve taproot key",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "output": "taproot",
         "key": "not a valid curve point"
       },
-      "slug": "off-curve-taproot"
+      "slug": "off-curve-taproot",
+      "checker": null
     },
     {
       "id": "SFS-20",
@@ -448,12 +448,12 @@
       "carry": "definition",
       "title": "Data in P2WPKH hashes",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "output": "P2WPKH",
         "program": "20 bytes that are payload, not a key hash"
       },
-      "slug": "p2wpkh-data"
+      "slug": "p2wpkh-data",
+      "checker": null
     },
     {
       "id": "SFS-21",
@@ -461,11 +461,11 @@
       "carry": "definition",
       "title": "Unnamed output-script data",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "output_script": "counted as data, and not one of the named output rows"
       },
-      "slug": "output-script-data"
+      "slug": "output-script-data",
+      "checker": null
     },
     {
       "id": "SFS-22",
@@ -473,13 +473,13 @@
       "carry": "definition",
       "title": "OP_RETURN text",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "opreturn": "text",
         "payload_bytes_max": 83,
         "not": "a named prefix in this catalog"
       },
-      "slug": "opreturn-text"
+      "slug": "opreturn-text",
+      "checker": "opreturn-text"
     },
     {
       "id": "SFS-23",
@@ -487,13 +487,13 @@
       "carry": "definition",
       "title": "OP_RETURN data",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "opreturn": "binary",
         "payload_bytes_max": 83,
         "not": "a named prefix or the 32-byte commitment"
       },
-      "slug": "opreturn-data"
+      "slug": "opreturn-data",
+      "checker": "opreturn-data"
     },
     {
       "id": "SFS-24",
@@ -501,13 +501,13 @@
       "carry": "definition",
       "title": "Inscription envelope",
       "from": "gbt-rules flt:side-inscription",
-      "code": false,
       "schema": {
         "envelope_bytes_min": 1,
         "pattern": "OP_FALSE OP_IF \u2026 ord"
       },
       "note": "On this chain OP_IF in a tapscript is already invalid. The row stays so the name is not confused with cat21.",
-      "slug": "inscription"
+      "slug": "inscription",
+      "checker": null
     },
     {
       "id": "SFS-25",
@@ -515,7 +515,6 @@
       "carry": "definition",
       "title": "Heavy data",
       "from": "gbt-rules flt:side-data",
-      "code": "rejectheavytapscript in spamcore.py",
       "schema": {
         "any": [
           {
@@ -527,7 +526,8 @@
         ]
       },
       "note": "The switch marks a revealed tapscript at least this many bytes. A large OP_RETURN is the data-carrier mark.",
-      "slug": "data-heavy"
+      "slug": "data-heavy",
+      "checker": "data-heavy"
     },
     {
       "id": "SFS-26",
@@ -535,11 +535,11 @@
       "carry": "definition",
       "title": "Several OP_RETURNs",
       "from": "gbt-rules flt:side-op-return-stack",
-      "code": "rejectopreturnstack in spamcore.py",
       "schema": {
         "opreturn_count_min": 2
       },
-      "slug": "opreturn-stack"
+      "slug": "opreturn-stack",
+      "checker": "opreturn-stack"
     },
     {
       "id": "SFS-27",
@@ -547,13 +547,13 @@
       "carry": "definition",
       "title": "Dust output",
       "from": "gbt-rules flt:side-dust",
-      "code": "dust_sat_per_kvb in spamcore.py",
       "schema": {
         "dust_outputs_min": 1,
         "dust_rate_sat_per_vb": 3
       },
       "note": "Does not match the Ark exit parent. A zero-value anchor on that parent is the whitelist, not dust.",
-      "slug": "dust-output"
+      "slug": "dust-output",
+      "checker": "dust-output"
     },
     {
       "id": "SFS-28",
@@ -561,12 +561,12 @@
       "carry": "definition",
       "title": "Minimum fee",
       "from": "knots -blockmintxfee",
-      "code": "minfeerate_sat_vb in spamcore.py",
       "schema": {
         "mark_below_sat_vb": null
       },
       "note": "Mark a transaction under this fee so the node leaves it out of the block. It stays in the mempool.",
-      "slug": "min-fee"
+      "slug": "min-fee",
+      "checker": "min-fee"
     },
     {
       "id": "SFS-29",
@@ -574,12 +574,12 @@
       "carry": "definition",
       "title": "Dust spray",
       "from": "gbt-rules flt:side-dust-spray",
-      "code": "rejectdustspray in spamcore.py",
       "schema": {
         "outputs_under_1000_sat_min": 10
       },
       "note": "Many outputs above zero and under a sat line. A zero output is an anchor, not spray.",
-      "slug": "dust-spray"
+      "slug": "dust-spray",
+      "checker": "dust-spray"
     },
     {
       "id": "SFS-30",
@@ -587,13 +587,13 @@
       "carry": "definition",
       "title": "Fan-out",
       "from": "gbt-rules flt:side-fan-out",
-      "code": "rejectfanout in spamcore.py",
       "schema": {
         "kept_outputs_min": 25,
         "inputs_max": 2
       },
       "note": "One or two inputs paying many outputs that stay in the UTXO set. OP_RETURN does not count. A coinjoin has too many inputs.",
-      "slug": "fan-out"
+      "slug": "fan-out",
+      "checker": "fan-out"
     },
     {
       "id": "SFS-31",
@@ -601,11 +601,11 @@
       "carry": "definition",
       "title": "Many signatures",
       "from": "gbt-rules flt:side-many-sigs",
-      "code": false,
       "schema": {
         "extra_signature_checks_min": 100
       },
-      "slug": "many-sigs"
+      "slug": "many-sigs",
+      "checker": "many-sigs"
     },
     {
       "id": "opreturn-marker",
@@ -613,13 +613,13 @@
       "carry": "definition",
       "title": "One small OP_RETURN",
       "from": "gbt-rules flt:side-op_return",
-      "code": false,
       "schema": {
         "opreturn_count": 1,
         "opreturn_bytes_max": 83
       },
       "note": "Too wide to mark. A named row in this file wins when the bytes match it.",
-      "slug": "opreturn-marker"
+      "slug": "opreturn-marker",
+      "checker": null
     },
     {
       "id": "small-output",
@@ -627,7 +627,6 @@
       "carry": "definition",
       "title": "Small output",
       "from": "gbt-rules flt:side-small-output",
-      "code": false,
       "schema": {
         "outputs_under_1000_sat": {
           "min": 1,
@@ -636,7 +635,8 @@
         "dust_outputs": 0
       },
       "note": "Ordinary small payments and anchors. Shown, not marked.",
-      "slug": "small-output"
+      "slug": "small-output",
+      "checker": null
     },
     {
       "id": "odd-script",
@@ -644,7 +644,6 @@
       "carry": "definition",
       "title": "Odd output type",
       "from": "gbt-rules flt:side-odd-script",
-      "code": false,
       "schema": {
         "output_type_not": [
           "taproot",
@@ -655,7 +654,8 @@
           "anchor"
         ]
       },
-      "slug": "odd-script"
+      "slug": "odd-script",
+      "checker": null
     },
     {
       "id": "liquid-emergency",
@@ -663,12 +663,12 @@
       "carry": "definition",
       "title": "Liquid emergency spend",
       "from": "cesspool",
-      "code": false,
       "schema": {
         "script": "11-of-15 fails, then 2-of-3 after 4032 blocks"
       },
       "note": "Likely Liquid's own recovery. The layout can be copied, so it is not a whitelist. It is not enabled as spam either.",
-      "slug": "liquid-emergency"
+      "slug": "liquid-emergency",
+      "checker": null
     }
   ]
 }

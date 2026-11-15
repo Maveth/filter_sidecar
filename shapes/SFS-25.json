@@ -4,7 +4,6 @@
   "carry": "definition",
   "title": "Heavy data",
   "from": "gbt-rules flt:side-data",
-  "code": "rejectheavytapscript in spamcore.py",
   "schema": {
     "any": [
       {
@@ -16,5 +15,6 @@
     ]
   },
   "note": "The switch marks a revealed tapscript at least this many bytes. A large OP_RETURN is the data-carrier mark.",
-  "slug": "data-heavy"
+  "slug": "data-heavy",
+  "checker": "data-heavy"
 }

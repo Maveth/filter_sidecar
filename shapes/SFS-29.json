@@ -4,10 +4,10 @@
   "carry": "definition",
   "title": "Dust spray",
   "from": "gbt-rules flt:side-dust-spray",
-  "code": "rejectdustspray in spamcore.py",
   "schema": {
     "outputs_under_1000_sat_min": 10
   },
   "note": "Many outputs above zero and under a sat line. A zero output is an anchor, not spray.",
-  "slug": "dust-spray"
+  "slug": "dust-spray",
+  "checker": "dust-spray"
 }

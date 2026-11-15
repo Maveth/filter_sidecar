@@ -4,7 +4,6 @@
   "carry": "package",
   "title": "Ark exit",
   "from": "ours",
-  "code": "parent only, in spamcore.py",
   "schema": {
     "parent": {
       "version": 3,
@@ -36,5 +35,6 @@
     }
   },
   "note": "The package is what moves between sidecars. Enabling it inserts the pair here and leaves it unmarked. It does not go out on the Bitcoin port. The child is part of the package and is not itself a whitelist shape.",
-  "slug": "ark-exit"
+  "slug": "ark-exit",
+  "checker": "ark-exit"
 }

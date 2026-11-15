@@ -4,10 +4,10 @@
   "carry": "definition",
   "title": "Stacks commitment",
   "from": "cesspool",
-  "code": false,
   "schema": {
     "opreturn": "a Stacks block commitment",
     "exempt": "the all-zero burn output beside it"
   },
-  "slug": "stacks-commit"
+  "slug": "stacks-commit",
+  "checker": null
 }

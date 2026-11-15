@@ -4,10 +4,10 @@
   "carry": "definition",
   "title": "Minimum fee",
   "from": "knots -blockmintxfee",
-  "code": "minfeerate_sat_vb in spamcore.py",
   "schema": {
     "mark_below_sat_vb": null
   },
   "note": "Mark a transaction under this fee so the node leaves it out of the block. It stays in the mempool.",
-  "slug": "min-fee"
+  "slug": "min-fee",
+  "checker": "min-fee"
 }

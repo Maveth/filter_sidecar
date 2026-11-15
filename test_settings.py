@@ -58,6 +58,10 @@ class ShapeCardTest(unittest.TestCase):
         }
         rows = {row.get("slug") or row["id"]: row for row in board.spam_cards(shapes, rules, node)}
         self.assertEqual(rows["cat21"]["id"], "SFS-1")
+        self.assertEqual(rows["cat21"]["checker"], "cat21")
+        self.assertNotIn("code", rows["cat21"])
+        self.assertEqual(rows["fan-out"]["checker"], "fan-out")
+        self.assertEqual(set(board.LIVE_RULE), __import__("spamcore").CHECKERS)
         self.assertEqual(rows["fan-out"]["id"], "SFS-30")
         self.assertEqual(rows["dust-spray"]["id"], "SFS-29")
         self.assertEqual(rows["min-fee"]["id"], "SFS-28")

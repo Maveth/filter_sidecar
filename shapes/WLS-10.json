@@ -4,11 +4,11 @@
   "carry": "definition",
   "title": "Consolidation",
   "from": "gbt-rules flt:side-sweep",
-  "code": false,
   "schema": {
     "inputs_min": 25,
     "outputs_max": 3
   },
   "note": "Shrinks the coin set. Leave it unmarked. It is not a package and it does not get a fee credit yet.",
-  "slug": "consolidation"
+  "slug": "consolidation",
+  "checker": "consolidation"
 }

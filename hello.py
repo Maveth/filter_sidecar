@@ -16,6 +16,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+import spamcore
+
 def _stamp(*args, **kwargs):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     builtins.print(now, *args, **kwargs)
@@ -220,23 +222,17 @@ class Directory:
         for shape in self.catalog_shapes:
             if not isinstance(shape, dict) or shape.get("transfer") is False:
                 continue
-            row = {
-                "id": shape.get("id") or "",
-                "slug": shape.get("slug") or shape.get("id") or "",
-                "kind": shape.get("kind") or "",
-                "carry": shape.get("carry") or "",
-                "title": shape.get("title") or "",
-                "from": shape.get("from") or "",
-                "schema": shape.get("schema") or {},
-                "note": shape.get("note") or "",
-                "enabled": False,
-            }
-            if row["kind"] == "whitelist" and "whitelist" in wanted:
-                if row["carry"] == "package":
+            row = spamcore.sanitize_shape(shape)
+            row["enabled"] = False
+            if row.get("carry") != "package":
+                row.pop("parent", None)
+                row.pop("child", None)
+            if row.get("kind") == "whitelist" and "whitelist" in wanted:
+                if row.get("carry") == "package":
                     row["parent"] = shape.get("parent") if isinstance(shape.get("parent"), str) else None
                     row["child"] = shape.get("child") if isinstance(shape.get("child"), str) else None
                 whitelist.append(row)
-            elif row["kind"] in ("spam", "watch") and "spam" in wanted:
+            elif row.get("kind") in ("spam", "watch") and "spam" in wanted:
                 shapes.append(row)
         return {"op": "offer", "catalog": self.catalog, "shapes": shapes, "whitelist": whitelist}
 

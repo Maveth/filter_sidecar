@@ -4,7 +4,6 @@
   "carry": "definition",
   "title": "Odd output type",
   "from": "gbt-rules flt:side-odd-script",
-  "code": false,
   "schema": {
     "output_type_not": [
       "taproot",
@@ -15,5 +14,6 @@
       "anchor"
     ]
   },
-  "slug": "odd-script"
+  "slug": "odd-script",
+  "checker": null
 }

@@ -4,10 +4,10 @@
   "carry": "definition",
   "title": "OLGA stamps",
   "from": "cesspool",
-  "code": "stamp: prefix in spamcore.py",
   "schema": {
     "tag": "stamp:",
     "where": "a length prefix, then the tag, then consecutive P2WSH output hashes"
   },
-  "slug": "stamps"
+  "slug": "stamps",
+  "checker": "stamps"
 }

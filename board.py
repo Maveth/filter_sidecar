@@ -10,6 +10,8 @@ import subprocess
 import time
 from pathlib import Path
 
+import spamcore
+
 # Catalog id -> rules.json key that turns that check on.
 # These rules are already on in Knots. A sidecar rule outside this set is extra.
 NODE_RULES = {
@@ -464,7 +466,7 @@ def _min_fee_row(rules: dict) -> dict:
         "kind": "spam",
         "carry": "definition",
         "from": "knots -blockmintxfee",
-        "code": "minfeerate_sat_vb in spamcore.py" if _sat_vb(value) else False,
+        "checker": "min-fee",
         "schema": {"mark_below_sat_vb": value},
         "note": "Mark a transaction under this fee so the node leaves it out of the block. It stays in the mempool.",
         "insert": None,
@@ -946,8 +948,8 @@ def shape_row(shape: dict, rules: dict) -> dict:
         "kind": shape.get("kind") or "",
         "carry": shape.get("carry") or "",
         "from": shape.get("from") or "",
-        "code": shape.get("code") or False,
-        "schema": shape.get("schema") or {},
+        "checker": slug if slug in spamcore.CHECKERS else "",
+        "schema": shape.get("schema") if isinstance(shape.get("schema"), dict) else {},
         "note": shape.get("note") or "",
         "insert": shape.get("insert") or None,
         "live": bool(key) and rule_is_on(rules, key),
