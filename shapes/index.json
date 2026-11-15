@@ -42,9 +42,9 @@
     "SFS-29",
     "SFS-30",
     "SFS-31",
-    "opreturn-marker",
-    "small-output",
-    "odd-script",
-    "liquid-emergency"
+    "WCH-1",
+    "WCH-2",
+    "WCH-3",
+    "WCH-4"
   ]
 }

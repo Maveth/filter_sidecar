@@ -641,7 +641,7 @@
       "checker": "many-sigs"
     },
     {
-      "id": "opreturn-marker",
+      "id": "WCH-1",
       "kind": "watch",
       "carry": "definition",
       "title": "One small OP_RETURN",
@@ -655,7 +655,7 @@
       "checker": null
     },
     {
-      "id": "small-output",
+      "id": "WCH-2",
       "kind": "watch",
       "carry": "definition",
       "title": "Small output",
@@ -672,7 +672,7 @@
       "checker": null
     },
     {
-      "id": "odd-script",
+      "id": "WCH-3",
       "kind": "watch",
       "carry": "definition",
       "title": "Odd output type",
@@ -691,7 +691,7 @@
       "checker": null
     },
     {
-      "id": "liquid-emergency",
+      "id": "WCH-4",
       "kind": "watch",
       "carry": "definition",
       "title": "Liquid emergency spend",
