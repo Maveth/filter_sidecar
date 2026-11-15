@@ -349,8 +349,11 @@ def serve(path: Path, port: int = PORT, log_path: Path | None = None) -> None:
     if not path.is_file():
         raise SystemExit(f"rules file not found: {path}")
     Handler.rules_path = path
+    Handler.shapes_path = HERE / "shapes.json"
     if log_path is not None:
         Handler.log_path = log_path
+        if "seed" in log_path.name and (HERE / "shapes.seed.json").is_file():
+            Handler.shapes_path = HERE / "shapes.seed.json"
     server = ThreadingHTTPServer((HOST, port), Handler)
     print(f"sidecar view http://{HOST}:{port}/  settings /settings  rules {path} log {Handler.log_path}", flush=True)
     try:
