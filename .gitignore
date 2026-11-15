@@ -11,3 +11,4 @@ sift-local.json
 shapes.local.json
 config.filter.json
 rules.filter.json
+node-paths.json

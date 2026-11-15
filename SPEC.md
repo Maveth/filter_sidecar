@@ -34,9 +34,9 @@ Phase 1 prints this difference in `dry_run`. It does not loosen the live node.
 
 ## Rules
 
-`rules.json` is the policy. The program re-reads it every poll. Known checks and their numbers are a file change. A shape the checker has never heard of is still a code change in `spamcore.py`.
+`rules.json` is the policy. The program re-reads it every poll. Known checks and their numbers are a file change. A shape names a checker compiled into `spamcore.py`. A checker this copy does not have does not run. A new way to inspect a transaction is still a code change.
 
-Local rules always win. A later downloaded list may add shapes. It cannot override a local "always mark" or "never mark". If the source is down, the last good local file stays. A bad file must not be able to mark ordinary payments. There is no download in the current program.
+Local rules always win. The catalog is `shapes.json`, and the marker loads that file at startup. It does not call GitHub. The page can download shape ids that the local catalog does not have yet. A downloaded shape is stored and stays off. The download does not replace `rules.json`. If the source is down, the local file stays. A bad rules file must not be fetched, because it could mark ordinary payments.
 
 ## Whitelist
 
@@ -66,7 +66,7 @@ Block size, coin-age priority space, and maximum block weight are not filter opt
 
 ## Screens
 
-Not built. The page that exists today edits one rules file. The later screen has four tabs.
+The page lists spam and whitelist as rows, keeps those rows at the top, and opens settings from the gear. The gear holds the peer search, accepting signed packages, importing a private shape, downloading missing shapes, the node's policy lines, a sample `bitcoin.conf`, the log, and the inbox. `/settings` is the long rules form. The page does not write `bitcoin.conf`.
 
 ### Filter
 
@@ -74,34 +74,29 @@ The numbers and on/off rules in the list above. Each row shows the node value an
 
 ### Peers
 
-A peers list in the shape of Bitcoin's peers window: direction, address, handshake result, whether that peer carries whitelist packages, spam shapes, or both, and how much has been exchanged.
+The peers table shows direction, handshake, catalog, the other sidecar's commit, and what it carries. An operator can add an address, search Bitcoin peers at their port plus 2, and delete an address they added. A sidecar does not learn other sidecars from a sidecar.
 
-Sidecars are not on the Bitcoin peer list and do not set a Bitcoin service bit. They listen on their own port. The default is the Bitcoin port plus 2. This node tells Bitcoin peers port 8333, so the default sidecar port is 8335. The port is a setting and can be changed. Inbound peers need that port open on the ISP port forward and on the firewall. A closed port still allows connections this sidecar starts.
-
-Bootstrap tries each Bitcoin peer at that peer's Bitcoin port plus 2 and looks for the sidecar handshake. A peer that already gave a different sidecar port is dialed there. After the handshake, sidecars gossip their own addresses. The handshake says whether that operator offers whitelist packages, spam shapes, or both.
+Sidecars are not on the Bitcoin peer list and do not set a Bitcoin service bit. They listen on their own port. The search uses the Bitcoin port plus 2. The port is a setting. Inbound peers need that port open. A closed port still allows connections this sidecar starts.
 
 ### Spam shapes
 
-A list of custom shapes. The names and the schema for each one are in [shapes.json](shapes.json). That file is the catalog. It is not loaded by the running sidecar. Each row can be enabled or disabled for this filter. An enabled spam shape marks matching mempool transactions out of the template. A disabled shape is stored and is not applied. A shape received from a peer arrives disabled until the operator enables it.
+The catalog is [shapes.json](shapes.json). The running sidecar loads it. Each row can be turned on or off in the rules file. An enabled spam shape marks matching mempool transactions out of the template when this copy has that checker. A disabled shape is stored and is not applied. A shape received from a peer arrives disabled. Turning it on does not by itself make this copy mark it.
 
 ### Whitelist
 
-The first row is the Ark exit shape this program already knows: version 3, miner fee exactly 0, one zero-value pay-to-anchor, then the child that spends that anchor and pays the miner fee. The tab shows how to add another shape. It shows how many transactions of that shape are in the mempool now, and how many peers that packaged set was sent to.
+WLS-1 is the Ark exit this program already knows: version 3, miner fee exactly 0, one zero-value pay-to-anchor, then the child that spends that anchor and pays the miner fee. Test on a row counts what that one check would put back in the current mempool, and what would stay marked by another check.
 
-Operators send and receive the packaged set. For a whitelist entry that set is the signed parent, then the child. Spam shapes travel the same way, as definitions rather than transactions. What arrives is kept like a small mempool of whitelist packages and spam shapes. Nothing in it applies until this operator enables it. An enabled whitelist package is inserted here (parent with `ignore_rejects`, then the child) and left unmarked so it can be mined. Enabling it does not make the Bitcoin node relay it to Bitcoin peers. Other sidecars receive it only on the sidecar port.
+Shape definitions are what peers exchange. A signed parent and child are kept only when the operator accepts packages. A received shape stays off. Enabling a received shape does not by itself mark or insert anything. The Ark parent is inserted by this sidecar with `ignore_rejects` when that whitelist is on. That does not make the node relay it to Bitcoin peers.
 
 ## New spam shapes
 
-A known check or a number is data on the filter tab. A custom shape is a row on the spam-shapes tab. A shape the checker has never implemented is still a code change. The point of the app is that those definitions can change without a Knots rebuild, for transactions the node already accepts.
+A known check or a number is data in the rules file. A custom shape is a catalog row that names a checker this copy already has. A shape the checker has never implemented is still a code change. The definitions can change without a Knots rebuild, for transactions the node already accepts. They cannot add a new checker by themselves.
 
-## Order of work
+## Where the work stands
 
-1. Catalog Knots filters against the sidecar rules and print the three sets. `dry_run` only.
-2. Whitelist shapes and txids, including the local-insertion path.
-3. Move the three tighter numbers onto the filter, and add the other mempool-membership options as filter rows that do nothing while the node is already tighter.
-4. New spam patterns, then the custom spam-shape list.
-5. The four tabs. The peers tab, the listen port, and the exchange of packages and shapes come after the local filter rows.
-6. A signed feed of definitions. Local enable and disable still win.
+The catalog, the rules file, the page, the port-plus-2 search, and the offer of shape definitions are in the program. Signed packages are accepted only when the operator turns that on. The three tighter numbers above are still the live node's numbers: data size 42, data weight 2, and 51 bytes per sigop.
+
+Not built: sidecars learning sidecars from other sidecars, a received shape applying just because it was enabled, and a signed feed that replaces the local rules. Local enable and disable still win.
 
 ## Not in this program
 

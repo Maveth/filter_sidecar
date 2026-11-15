@@ -92,10 +92,19 @@ CONF_KEY = {
     "min-fee": "blockmintxfee",
 }
 
-NODE_CONF = {
-    "sidecar.log": Path("/mnt/Chain/knots/bitcoin.conf"),
-    "sidecar-seed.log": Path("/mnt/Chain/knots-seed/bitcoin.conf"),
-}
+def node_conf_path(log_path: Path) -> Path | None:
+    """Conf path from the local node-paths.json. Absent file means no conf is read."""
+    table_path = Path(__file__).resolve().parent / "node-paths.json"
+    try:
+        table = json.loads(table_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(table, dict):
+        return None
+    raw = table.get(Path(log_path).name)
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    return Path(raw)
 CONF_LINES = (
     "dustrelayfee",
     "minrelaytxfee",
@@ -341,7 +350,7 @@ def _read_conf(path: Path) -> dict[str, str]:
 
 def load_node_policy(log_path: Path) -> dict:
     """Fee lines and the spam switches for the node this page watches."""
-    path = NODE_CONF.get(Path(log_path).name)
+    path = node_conf_path(log_path)
     conf = _read_conf(path) if path is not None else {}
     dust = btc_per_kvb_to_sat_vb(conf.get("dustrelayfee"))
     relay = btc_per_kvb_to_sat_vb(conf.get("minrelaytxfee"))
@@ -362,7 +371,7 @@ def load_node_policy(log_path: Path) -> dict:
 
 def current_node_conf(log_path: Path) -> str:
     """Policy lines from this node's bitcoin.conf. Passwords are not included."""
-    path = NODE_CONF.get(Path(log_path).name)
+    path = node_conf_path(log_path)
     if path is None:
         return ""
     conf = _read_conf(path)

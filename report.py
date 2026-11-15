@@ -159,7 +159,10 @@ def classify(rules: dict, knots: dict[str, str]) -> list[tuple[str, str, str]]:
 def main() -> int:
     here = Path(__file__).resolve().parent
     rules_path = Path(sys.argv[1] if len(sys.argv) > 1 else here / "rules.json.example")
-    conf_path = Path(sys.argv[2] if len(sys.argv) > 2 else "/mnt/Chain/knots-filter/bitcoin.conf")
+    if len(sys.argv) < 3:
+        print("usage: report.py rules.json bitcoin.conf")
+        return 2
+    conf_path = Path(sys.argv[2])
     rules = __import__("json").loads(rules_path.read_text())
     knots = load_conf(conf_path)
     rows = classify(rules, knots)
