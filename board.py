@@ -272,6 +272,35 @@ def load_package_counts(log_path: Path) -> tuple[int, int]:
     return len(dict.fromkeys(incoming)), len(dict.fromkeys(outgoing))
 
 
+def load_package_rows(log_path: Path, key: str) -> list[dict]:
+    """Sent or received package rows. One row per hash."""
+    path = log_path.with_suffix(".peers.traffic.json")
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return []
+    if not isinstance(data, dict):
+        return []
+    rows = data.get(key)
+    if not isinstance(rows, list):
+        return []
+    found = []
+    seen = set()
+    for item in rows:
+        if not isinstance(item, dict) or not item.get("id") or item["id"] in seen:
+            continue
+        seen.add(item["id"])
+        found.append({
+            "id": item.get("id") or "",
+            "shape": item.get("shape") or "",
+            "parent": item.get("parent") or "",
+            "child": item.get("child") or "",
+            "to": item.get("to") or "",
+            "when": item.get("when") or "",
+        })
+    return found
+
+
 def load_sent(path: Path) -> list[dict]:
     if not path.is_file():
         return []
@@ -1087,8 +1116,9 @@ def view(shapes_path: Path, rules: dict, log_path: Path, sent_path: Path) -> dic
         "peers_note": "Listening for a versioned hello. No other sidecar has answered yet.",
         "package_in": package_in,
         "package_out": package_out,
-        "sent": load_sent(sent_path),
-        "sent_note": "A sent whitelist package is the shape, then the signed parent, then the child. None have been recorded.",
+        "sent": load_package_rows(log_path, "sent") or load_sent(sent_path),
+        "received_packages": load_package_rows(log_path, "received"),
+        "sent_note": "Each hash is one package. Sent is the second number: a peer asked for it and this sidecar sent it.",
         "stopped": stopped,
         "counts": counts,
     }

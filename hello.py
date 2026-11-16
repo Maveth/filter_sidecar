@@ -53,6 +53,61 @@ def running_commit() -> str:
         return ""
 
 
+def _read_varint(raw: bytes, off: int) -> tuple[int, int]:
+    if off >= len(raw):
+        raise ValueError("short")
+    mark = raw[off]
+    if mark < 0xfd:
+        return mark, off + 1
+    if mark == 0xfd and off + 3 <= len(raw):
+        return int.from_bytes(raw[off + 1:off + 3], "little"), off + 3
+    if mark == 0xfe and off + 5 <= len(raw):
+        return int.from_bytes(raw[off + 1:off + 5], "little"), off + 5
+    if off + 9 <= len(raw):
+        return int.from_bytes(raw[off + 1:off + 9], "little"), off + 9
+    raise ValueError("short")
+
+
+def txid_of_hex(raw_hex: str) -> str:
+    """Transaction id of a signed package transaction. Empty when the hex is not a transaction."""
+    try:
+        raw = bytes.fromhex(raw_hex.strip())
+    except ValueError:
+        return ""
+    if len(raw) < 10:
+        return ""
+    try:
+        if raw[4] == 0x00 and raw[5] == 0x01:
+            off = 6
+            vin, off = _read_varint(raw, off)
+            in_start = 6
+            for _ in range(vin):
+                off += 36
+                script_len, off = _read_varint(raw, off)
+                off += script_len + 4
+            in_end = off
+            vout, off = _read_varint(raw, off)
+            for _ in range(vout):
+                off += 8
+                script_len, off = _read_varint(raw, off)
+                off += script_len
+            out_end = off
+            for _ in range(vin):
+                stack, off = _read_varint(raw, off)
+                for _ in range(stack):
+                    item, off = _read_varint(raw, off)
+                    off += item
+            stripped = raw[:4] + raw[in_start:out_end] + raw[off:off + 4]
+        else:
+            stripped = raw
+    except (ValueError, IndexError):
+        return ""
+    if len(stripped) < 10:
+        return ""
+    digest = hashlib.sha256(hashlib.sha256(stripped).digest()).digest()
+    return digest[::-1].hex()
+
+
 def package_id(shape_id: str, parent_hex: str, child_hex: str = "", extra: list[str] | tuple[str, ...] = ()) -> str:
     """Hash of one whitelist set. A second set is a different hash."""
     parts = [shape_id, parent_hex.strip().lower(), child_hex.strip().lower()]
@@ -190,7 +245,7 @@ class Directory:
             if accept and remote is not None:
                 request = read_message(conn)
                 asked = request.get("ids") if isinstance(request, dict) and request.get("op") == "get" else []
-                items = self.data_for(asked)
+                items = self.data_for(asked, str(remote.get("name") or remote.get("listen") or ""))
                 write_hello(conn, {"op": "data", "items": items})
                 write_hello(conn, {"op": "get", "ids": self.wants(remote.get("inv") or [])})
                 reply_data = read_message(conn)
@@ -227,7 +282,7 @@ class Directory:
                 self.take_data(remote, incoming.get("items") or [])
             request = read_message(conn)
             asked = request.get("ids") if isinstance(request, dict) and request.get("op") == "get" else []
-            items = self.data_for(asked)
+            items = self.data_for(asked, str(remote.get("name") or remote.get("listen") or address))
             write_hello(conn, {"op": "data", "items": items})
             self.absorb_known(remote.get("known") or [])
             print(f"exchange out {remote.get('name') or address} asked={len(wanted)} sent={len(items)}", flush=True)
@@ -337,17 +392,17 @@ class Directory:
         if any(not item or not _hex_or_empty(item) for item in extras):
             return None
         digest = package_id(shape_id, parent_hex, child_hex, extras)
-        if digest in self.packages:
-            return digest
-        self.packages[digest] = {
-            "op": "package",
-            "id": digest,
-            "shape": shape_id,
-            "parent": parent_hex,
-            "child": child_hex,
-            "extra": extras,
-        }
-        print(f"package {shape_id} {digest[:12]}", flush=True)
+        if digest not in self.packages:
+            self.packages[digest] = {
+                "op": "package",
+                "id": digest,
+                "shape": shape_id,
+                "parent": parent_hex,
+                "child": child_hex,
+                "extra": extras,
+            }
+            print(f"package {shape_id} {digest[:12]}", flush=True)
+        self._fill_known_package(digest)
         return digest
 
     def inv(self) -> list[str]:
@@ -378,7 +433,7 @@ class Directory:
             ask.append(item)
         return ask[:100]
 
-    def data_for(self, ids: list) -> list[dict]:
+    def data_for(self, ids: list, peer: str = "") -> list[dict]:
         items = []
         shapes = {str(shape.get("id")): shape for shape in self.catalog_shapes if isinstance(shape, dict)}
         for item_id in ids or []:
@@ -388,7 +443,7 @@ class Directory:
                 package = self.packages.get(item_id[4:])
                 if package:
                     items.append(package)
-                    self._note_package("out", item_id[4:])
+                    self._note_package("out", item_id[4:], peer)
                 continue
             shape = shapes.get(item_id)
             if shape and shape.get("transfer") is not False:
@@ -426,7 +481,7 @@ class Directory:
                 digest = self.add_package(shape_id, parent, child, extra)
                 if digest:
                     self.have_ids.add(f"pkg:{digest}")
-                    self._note_package("in", digest)
+                    self._note_package("in", digest, str(remote.get("name") or listen))
                     if digest not in self.submitted and digest not in self.pending_submit:
                         self.pending_submit.append(digest)
                 continue
@@ -520,23 +575,82 @@ class Directory:
     def _traffic_path(self) -> Path:
         return self.path.with_suffix(".traffic.json")
 
-    def _note_package(self, direction: str, digest: str) -> None:
+    def _package_row(self, digest: str, peer: str) -> dict:
+        package = self.packages.get(digest) or {}
+        return {
+            "id": digest,
+            "shape": str(package.get("shape") or ""),
+            "parent": txid_of_hex(str(package.get("parent") or "")),
+            "child": txid_of_hex(str(package.get("child") or "")),
+            "to": peer,
+            "when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+
+    def _write_traffic(self, loaded: dict) -> None:
         path = self._traffic_path()
-        try:
-            loaded = json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError):
-            loaded = {}
-        if not isinstance(loaded, dict):
-            loaded = {}
-        rows = loaded.get(direction)
-        if not isinstance(rows, list):
-            rows = []
-        if digest not in rows:
-            rows.append(digest)
-        loaded[direction] = rows
         tmp = path.with_suffix(path.suffix + ".tmp")
         tmp.write_text(json.dumps(loaded, indent=2) + "\n")
         tmp.replace(path)
+
+    def _load_traffic(self) -> dict:
+        try:
+            loaded = json.loads(self._traffic_path().read_text())
+        except (OSError, json.JSONDecodeError):
+            return {}
+        return loaded if isinstance(loaded, dict) else {}
+
+    def _note_package(self, direction: str, digest: str, peer: str = "") -> None:
+        detail_key = "sent" if direction == "out" else "received"
+        with self._lock:
+            loaded = self._load_traffic()
+            rows = loaded.get(direction)
+            if not isinstance(rows, list):
+                rows = []
+            if digest not in rows:
+                rows.append(digest)
+            loaded[direction] = rows
+            details = loaded.get(detail_key)
+            if not isinstance(details, list):
+                details = []
+            current = next((row for row in details if isinstance(row, dict) and row.get("id") == digest), None)
+            fresh = self._package_row(digest, peer)
+            if current is None:
+                details.append(fresh)
+            else:
+                if peer and not current.get("to"):
+                    current["to"] = peer
+                if fresh["parent"] and not current.get("parent"):
+                    current["parent"] = fresh["parent"]
+                    current["child"] = fresh["child"]
+                    current["shape"] = fresh["shape"] or current.get("shape") or ""
+            loaded[detail_key] = details
+            self._write_traffic(loaded)
+
+    def _fill_known_package(self, digest: str) -> None:
+        """A package already counted keeps its hash. Fill in the parent and child when we still have them."""
+        with self._lock:
+            loaded = self._load_traffic()
+            changed = False
+            for direction, key in (("out", "sent"), ("in", "received")):
+                hashes = loaded.get(direction)
+                if not isinstance(hashes, list) or digest not in hashes:
+                    continue
+                details = loaded.get(key)
+                if not isinstance(details, list):
+                    details = []
+                current = next((row for row in details if isinstance(row, dict) and row.get("id") == digest), None)
+                fresh = self._package_row(digest, "")
+                if current is None:
+                    details.append(fresh)
+                    changed = True
+                elif fresh["parent"] and not current.get("parent"):
+                    current["parent"] = fresh["parent"]
+                    current["child"] = fresh["child"]
+                    current["shape"] = fresh["shape"] or current.get("shape") or ""
+                    changed = True
+                loaded[key] = details
+            if changed:
+                self._write_traffic(loaded)
 
     def publish_inbox(self) -> None:
         if self.inbox_path is None:

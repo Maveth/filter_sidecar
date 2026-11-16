@@ -709,10 +709,17 @@ function show(board) {
     <p class="note">${local.search_port_plus_2 === false ? "Peer-port search is off." : `Search dials this node's outbound Bitcoin peers at their port plus ${Number(local.port_offset) || 4}.`} Announced addresses are shared. A new one is passed on when it connects. An address of 0.0.0.0 is not passed on and cannot be dialed. ${local.accept_packages ? "Signed packages from peers are kept." : "Signed packages are not accepted. Shape lists still are."} ${local.import_received ? "Import is on. A received shape stays off until you turn its row on." : "Import is off. A downloaded shape stays in the inbox."}</p>
     ${(board.peers || []).length || added.length ? `<table><tr><th>Address</th><th>Name</th><th>Direction</th><th>Protocol</th><th>Catalog</th><th>Commit</th><th>Carries</th><th>Handshake</th><th></th></tr>${peerRows}${waiting}</table>` : `<p>${esc(board.peers_note)}</p>`}`;
   document.getElementById("peers").innerHTML = peerTable;
-  const sent = board.sent.length
-    ? `<table><tr><th>When</th><th>Shape</th><th>To</th><th>Parent</th><th>Child</th></tr>${board.sent.map((row) => `<tr><td>${esc(row.when)}</td><td>${esc(row.id)}</td><td>${esc(row.to)}</td><td><code>${esc(row.parent)}</code></td><td><code>${esc(row.child)}</code></td></tr>`).join("")}</table>`
-    : `<p>${esc(board.sent_note)}</p>`;
-  document.getElementById("sent").innerHTML = sent;
+  function packageRows(rows, who) {
+    if (!rows.length) return "<p>None yet.</p>";
+    return `<table><tr><th>When</th><th>Shape</th><th>${who}</th><th>Package</th><th>Parent</th><th>Child</th></tr>${rows.map((row) => `<tr><td>${esc(row.when)}</td><td>${esc(row.shape)}</td><td>${esc(row.to)}</td><td><code>${esc((row.id || "").slice(0, 12))}</code></td><td><code>${esc(row.parent)}</code></td><td><code>${esc(row.child)}</code></td></tr>`).join("")}</table>`;
+  }
+  const receivedPackages = board.received_packages || [];
+  document.getElementById("sent").innerHTML = `
+    <p class="note">${esc(board.sent_note)}</p>
+    <h2>Received ${esc(pkgIn)}</h2>
+    ${packageRows(receivedPackages, "From")}
+    <h2>Sent ${esc(pkgOut)}</h2>
+    ${packageRows(board.sent || [], "To")}`;
   const reasonRows = board.stopped.by_reason.map((row) => `<tr><td>${esc(row.count)}</td><td>${esc(row.reason)}</td></tr>`).join("");
   const recent = board.stopped.recent.map((row) => `<tr><td><code>${esc(row.txid)}</code></td><td>${esc(row.reason)}</td></tr>`).join("");
   document.getElementById("stopped").innerHTML = `

@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hello import PROTO, Directory, outbound_sidecar_addrs, package_id, probe_is_due, shareable_address, write_hello
+from hello import PROTO, Directory, outbound_sidecar_addrs, package_id, probe_is_due, shareable_address, txid_of_hex, write_hello
 
 
 def free_port() -> int:
@@ -26,6 +26,16 @@ class HelloTest(unittest.TestCase):
         self.assertEqual(addrs, ["127.0.0.1:28337"])
         chosen = outbound_sidecar_addrs([{"addr": "203.0.113.8:8333", "inbound": False}], 2)
         self.assertEqual(chosen, ["203.0.113.8:8335"])
+
+    def test_txid_of_a_bare_transaction_is_stable(self):
+        raw = (
+            "01000000" + "01" + "11" * 32 + "00000000" + "00" + "ffffffff"
+            + "01" + "0100000000000000" + "00" + "00000000"
+        )
+        first = txid_of_hex(raw)
+        self.assertEqual(len(first), 64)
+        self.assertEqual(first, txid_of_hex(raw))
+        self.assertEqual(txid_of_hex("ab"), "")
 
     def test_announced_address_is_shared_and_a_probe_waits_an_hour(self):
         self.assertFalse(shareable_address("127.0.0.1:28335"))
@@ -75,6 +85,9 @@ class HelloTest(unittest.TestCase):
             right_traffic = json.loads((root / "seed.peers.traffic.json").read_text())
             self.assertEqual(left_traffic["in"], [digest])
             self.assertEqual(right_traffic["out"], [digest])
+            self.assertEqual(right_traffic["sent"][0]["id"], digest)
+            self.assertEqual(right_traffic["sent"][0]["shape"], "WLS-1")
+            self.assertEqual(right_traffic["sent"][0]["to"], "local")
             sent = right.sent_items
             self.assertGreater(sent, 0)
             self.assertTrue(right.dial(left.listen))
