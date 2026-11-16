@@ -52,12 +52,12 @@ def running_commit() -> str:
         return ""
 
 
-def hello_body(name: str, listen: str, catalog: int, carries: list[str]) -> dict:
+def hello_body(name: str, listen: str, catalog: int, carries: list[str], commit: str = "") -> dict:
     return {
         "op": "hello",
         "proto": PROTO,
         "catalog": catalog,
-        "commit": running_commit(),
+        "commit": commit or running_commit(),
         "carries": carries,
         "listen": listen,
         "name": name,
@@ -94,9 +94,11 @@ def write_hello(conn: socket.socket, body: dict) -> None:
 
 
 class Directory:
-    def __init__(self, name: str, listen: str, catalog: int, path: Path, carries: list[str] | None = None) -> None:
+    def __init__(self, name: str, listen: str, catalog: int, path: Path, carries: list[str] | None = None, announce: str = "", commit: str = "") -> None:
         self.name = name
         self.listen = listen
+        self.announce = announce or listen
+        self.commit = commit
         self.catalog = catalog
         self.path = path
         self.carries = carries or list(CARRIES)
@@ -139,7 +141,7 @@ class Directory:
         try:
             remote = read_hello(conn)
             accept = bool(remote) and remote.get("proto") == PROTO
-            reply = hello_body(self.name, self.listen, self.catalog, self.carries)
+            reply = hello_body(self.name, self.announce, self.catalog, self.carries, self.commit)
             reply["accept"] = accept
             if not accept:
                 reply["reason"] = "proto" if remote else "malformed"
@@ -165,7 +167,7 @@ class Directory:
             conn.settimeout(0.5)
             conn.connect((host, port))
             conn.settimeout(3)
-            write_hello(conn, hello_body(self.name, self.listen, self.catalog, self.carries))
+            write_hello(conn, hello_body(self.name, self.announce, self.catalog, self.carries, self.commit))
             remote = read_hello(conn)
             if not remote or remote.get("accept") is not True or remote.get("proto") != PROTO:
                 if record_failure or (remote and remote.get("proto") not in (None, PROTO)):
@@ -295,7 +297,7 @@ class Directory:
         with self._lock:
             peers = list(self.peers.values())
         body = {
-            "self": hello_body(self.name, self.listen, self.catalog, self.carries),
+            "self": hello_body(self.name, self.announce, self.catalog, self.carries, self.commit),
             "peers": peers,
         }
         tmp = self.path.with_suffix(self.path.suffix + ".tmp")

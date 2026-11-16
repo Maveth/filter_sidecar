@@ -307,7 +307,10 @@ def main() -> int:
             peers_path = cfg_path.parent / peers_path
         status_path = peers_path.parent / peers_path.name.replace(".peers.json", ".status.json")
         carries = cfg.get("carries") if isinstance(cfg.get("carries"), list) else None
-        directory = Directory(str(cfg.get("name") or "sidecar"), listen, catalog, peers_path, carries)
+        directory = Directory(
+            str(cfg.get("name") or "sidecar"), listen, catalog, peers_path, carries,
+            announce=str(cfg.get("announce") or ""), commit=str(cfg.get("commit") or ""),
+        )
         directory.catalog_shapes = catalog_shapes
         inbox_name = peers_path.name.replace(".peers.json", ".inbox.json")
         inbox_path = Path(cfg.get("inbox_file") or peers_path.parent / inbox_name)
