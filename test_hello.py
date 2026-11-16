@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hello import PROTO, Directory, outbound_sidecar_addrs, write_hello
+from hello import PROTO, Directory, outbound_sidecar_addrs, probe_is_due, shareable_address, write_hello
 
 
 def free_port() -> int:
@@ -26,6 +26,18 @@ class HelloTest(unittest.TestCase):
         self.assertEqual(addrs, ["127.0.0.1:28337"])
         chosen = outbound_sidecar_addrs([{"addr": "203.0.113.8:8333", "inbound": False}], 2)
         self.assertEqual(chosen, ["203.0.113.8:8335"])
+
+    def test_announced_address_is_shared_and_a_probe_waits_an_hour(self):
+        self.assertFalse(shareable_address("127.0.0.1:28335"))
+        self.assertFalse(shareable_address("0.0.0.0:8337"))
+        self.assertTrue(shareable_address("203.0.113.5:8337"))
+        self.assertFalse(probe_is_due(1000, 1000 + 3599))
+        self.assertTrue(probe_is_due(1000, 1000 + 3600))
+        with TemporaryDirectory() as tmp:
+            directory = Directory("local", "127.0.0.1:28335", 1, Path(tmp) / "peers.json", announce="203.0.113.9:8337")
+            directory.peers["34.72.58.183:8337"] = {"address": "34.72.58.183:8337", "accept": True}
+            self.assertEqual(directory.known_addresses(), ["203.0.113.9:8337", "34.72.58.183:8337"])
+            self.assertEqual(directory._hello()["known"], ["203.0.113.9:8337", "34.72.58.183:8337"])
 
     def test_matching_proto_is_accepted_and_a_mismatch_is_refused(self):
         with TemporaryDirectory() as tmp:

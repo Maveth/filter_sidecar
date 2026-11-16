@@ -52,8 +52,22 @@ def running_commit() -> str:
         return ""
 
 
-def hello_body(name: str, listen: str, catalog: int, carries: list[str], commit: str = "") -> dict:
-    return {
+def shareable_address(address: str) -> bool:
+    """An announced address other sidecars can dial. Loopback and wildcards stay local."""
+    parsed = split_addr(address)
+    if parsed is None:
+        return False
+    host = parsed[0].lower()
+    return host not in {"0.0.0.0", "127.0.0.1", "::", "::1"} and not host.startswith("127.")
+
+
+def probe_is_due(last: float, now: float, interval: float = 3600) -> bool:
+    """True when this Bitcoin peer has not been checked within the last hour."""
+    return now - last >= interval
+
+
+def hello_body(name: str, listen: str, catalog: int, carries: list[str], commit: str = "", known: list[str] | None = None) -> dict:
+    body = {
         "op": "hello",
         "proto": PROTO,
         "catalog": catalog,
@@ -62,6 +76,9 @@ def hello_body(name: str, listen: str, catalog: int, carries: list[str], commit:
         "listen": listen,
         "name": name,
     }
+    if known:
+        body["known"] = known
+    return body
 
 
 def read_message(conn: socket.socket) -> dict | None:
@@ -99,6 +116,7 @@ class Directory:
         self.listen = listen
         self.announce = announce or listen
         self.commit = commit
+        self._tried: dict[str, float] = {}
         self.catalog = catalog
         self.path = path
         self.carries = carries or list(CARRIES)
@@ -141,7 +159,7 @@ class Directory:
         try:
             remote = read_hello(conn)
             accept = bool(remote) and remote.get("proto") == PROTO
-            reply = hello_body(self.name, self.announce, self.catalog, self.carries, self.commit)
+            reply = self._hello()
             reply["accept"] = accept
             if not accept:
                 reply["reason"] = "proto" if remote else "malformed"
@@ -151,6 +169,7 @@ class Directory:
                 write_hello(conn, self.offer_for(remote.get("carries") or []))
                 if offer is not None:
                     self.take_offer(remote, offer)
+                self.absorb_known(remote.get("known") or [])
                 self.remember(remote, "in", f"{addr[0]}:{addr[1]}")
         except OSError as exc:
             print(f"hello in {addr[0]}: {exc}", flush=True)
@@ -159,7 +178,7 @@ class Directory:
 
     def dial(self, address: str, direction: str = "out", record_failure: bool = False) -> bool:
         parsed = split_addr(address)
-        if parsed is None or address == self.listen:
+        if parsed is None or address in {self.listen, self.announce}:
             return False
         host, port = parsed
         conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -167,7 +186,7 @@ class Directory:
             conn.settimeout(0.5)
             conn.connect((host, port))
             conn.settimeout(3)
-            write_hello(conn, hello_body(self.name, self.announce, self.catalog, self.carries, self.commit))
+            write_hello(conn, self._hello())
             remote = read_hello(conn)
             if not remote or remote.get("accept") is not True or remote.get("proto") != PROTO:
                 if record_failure or (remote and remote.get("proto") not in (None, PROTO)):
@@ -177,6 +196,7 @@ class Directory:
             offer = read_message(conn)
             if offer is not None:
                 self.take_offer(remote, offer)
+            self.absorb_known(remote.get("known") or [])
         except OSError:
             if record_failure:
                 self.remember({"listen": address, "accept": False, "reason": "unreachable"}, direction, address)
@@ -216,6 +236,48 @@ class Directory:
         self.publish()
         if row["accept"] and direction == "in" and not already_out and split_addr(listen) is not None:
             threading.Thread(target=self.dial, args=(listen, "out"), daemon=True).start()
+        if row["accept"] and not previous.get("accept") and shareable_address(listen):
+            self._tell_others(listen)
+
+    def _hello(self) -> dict:
+        return hello_body(self.name, self.announce, self.catalog, self.carries, self.commit, self.known_addresses())
+
+    def known_addresses(self) -> list[str]:
+        found = []
+        if shareable_address(self.announce):
+            found.append(self.announce)
+        with self._lock:
+            for row in self.peers.values():
+                address = str(row.get("address") or "")
+                if row.get("accept") and shareable_address(address):
+                    found.append(address)
+        return list(dict.fromkeys(found))[:50]
+
+    def absorb_known(self, addresses: list) -> None:
+        for address in addresses:
+            if isinstance(address, str):
+                self.learn_address(address)
+
+    def learn_address(self, address: str) -> None:
+        if not shareable_address(address) or address in {self.listen, self.announce}:
+            return
+        now = time.time()
+        with self._lock:
+            if (self.peers.get(address) or {}).get("accept"):
+                return
+            if now - self._tried.get(address, 0) < 3600:
+                return
+            self._tried[address] = now
+        threading.Thread(target=self.dial, args=(address, "out"), daemon=True).start()
+
+    def _tell_others(self, arrived: str) -> None:
+        with self._lock:
+            others = [
+                address for address, row in self.peers.items()
+                if address != arrived and row.get("accept") and shareable_address(address)
+            ]
+        for address in others:
+            threading.Thread(target=self.dial, args=(address, "out"), daemon=True).start()
 
     def offer_for(self, remote_carries: list) -> dict:
         wanted = set(remote_carries) or set(CARRIES)
@@ -297,7 +359,7 @@ class Directory:
         with self._lock:
             peers = list(self.peers.values())
         body = {
-            "self": hello_body(self.name, self.announce, self.catalog, self.carries, self.commit),
+            "self": self._hello(),
             "peers": peers,
         }
         tmp = self.path.with_suffix(self.path.suffix + ".tmp")

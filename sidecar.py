@@ -14,7 +14,7 @@ import urllib.request
 from pathlib import Path
 
 import board
-from hello import Directory, outbound_sidecar_addrs, port_offset
+from hello import Directory, outbound_sidecar_addrs, port_offset, probe_is_due
 from datetime import datetime, timezone
 import builtins
 
@@ -344,6 +344,26 @@ def main() -> int:
                 return []
             return [str(item) for item in loaded if isinstance(item, str)]
 
+        probes_path = cfg_path.parent / (peers_path.stem + ".probes.json")
+
+        def load_probes() -> dict[str, float]:
+            try:
+                loaded_probes = json.loads(probes_path.read_text())
+            except (OSError, json.JSONDecodeError):
+                return {}
+            if not isinstance(loaded_probes, dict):
+                return {}
+            stamps = {}
+            for key, value in loaded_probes.items():
+                if isinstance(value, (int, float)):
+                    stamps[str(key)] = float(value)
+            return stamps
+
+        def save_probes(stamps: dict[str, float]) -> None:
+            tmp = probes_path.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(stamps, indent=2) + "\n")
+            tmp.replace(probes_path)
+
         def find_peers() -> None:
             next_search = 0.0
             while True:
@@ -356,12 +376,21 @@ def main() -> int:
                 targets.extend(read_manual())
                 if local.get("search_port_plus_2", True):
                     try:
-                        targets.extend(outbound_sidecar_addrs(node.call("getpeerinfo", []) or [], local.get("port_offset", 4)))
+                        found = outbound_sidecar_addrs(node.call("getpeerinfo", []) or [], local.get("port_offset", 4))
                     except Exception as exc:
                         print(f"peer list failed: {exc}", flush=True)
+                        found = []
+                    stamps = load_probes()
+                    due = [address for address in found if probe_is_due(stamps.get(address, 0), now)]
+                    if due:
+                        picked = due[0]
+                        stamps[picked] = now
+                        save_probes(stamps)
+                        targets.append(picked)
+                        print(f"probe {picked}", flush=True)
                 seen: set[str] = set()
                 for address in targets:
-                    if address in seen or address == listen:
+                    if address in seen or address == listen or address == directory.announce:
                         continue
                     seen.add(address)
                     directory.dial(address)

@@ -74,7 +74,7 @@ The numbers and on/off rules in the list above. Each row shows the node value an
 
 ### Peers
 
-The peers table shows direction, handshake, catalog, the other sidecar's commit, and what it carries. An operator can add an address, search Bitcoin peers at their port plus 4, and delete an address they added. The added number is a setting and starts at 4. A sidecar does not learn other sidecars from a sidecar.
+The peers table shows direction, handshake, catalog, the other sidecar's commit, and what it carries. An operator can add an address, search Bitcoin peers at their port plus 4, and delete an address they added. The added number is a setting and starts at 4. Each Bitcoin peer is checked once an hour. A sidecar sends the announced addresses it knows, and passes on a new one when that sidecar connects.
 
 Sidecars are not on the Bitcoin peer list and do not set a Bitcoin service bit. They listen on their own port. The search uses the Bitcoin port plus 4 unless the operator picks another offset. Inbound peers need that port open. A closed port still allows connections this sidecar starts.
 
