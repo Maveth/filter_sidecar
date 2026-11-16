@@ -38,11 +38,16 @@ def _item(data: bytes) -> bytes:
     return b"\xfd" + size.to_bytes(2, "little") + data
 
 
-def _witness_script_tx(script: bytes, output: bytes) -> bytes:
+def _witness_script_tx(script: bytes, output: bytes, satisfaction: list[bytes] | None = None, control: bytes | None = None) -> bytes:
     raw = b"\x02\x00\x00\x00\x00\x01\x01"
     raw += b"\x11" * 32 + b"\x00\x00\x00\x00" + b"\x00" + b"\xff\xff\xff\xff"
     raw += b"\x01" + (1000).to_bytes(8, "little") + _item(output)
-    raw += b"\x01" + _item(script)
+    items = list(satisfaction or []) + [script]
+    if control is not None:
+        items.append(control)
+    raw += bytes([len(items)])
+    for item in items:
+        raw += _item(item)
     return raw + b"\x00\x00\x00\x00"
 
 
@@ -271,6 +276,31 @@ class RulesTest(unittest.TestCase):
         self.assertIsNone(tx_reject_reason(_witness_script_tx(prefixed, pay), on))
         self.assertEqual(tx_reject_reason(_witness_script_tx(peg, pay), {"rejectfakemultisig": True}), "fakemultisig")
         self.assertEqual(tx_reject_reason(_witness_script_tx(bare, pay), on), "fakemultisig")
+
+    def test_an_unverified_key_is_marked_with_the_fake_multisig_check(self):
+        key = b"\x21" + bytes([2]) + b"\x11" * 32
+        guard = bytes.fromhex("749264") + key + bytes.fromhex("ac68") + key + bytes.fromhex("51ae")
+        flags = {"rejectfakemultisig": True}
+        self.assertEqual(tx_reject_reason(_witness_script_tx(guard, b"\x00\x14" + b"\x22" * 20), flags), "unverifiedkey")
+        dropped = key + bytes.fromhex("ac75")
+        self.assertEqual(
+            tx_reject_reason(_witness_script_tx(dropped, b"\x00\x14" + b"\x22" * 20, satisfaction=[b""]), flags),
+            "unverifiedkey",
+        )
+        self.assertIsNone(tx_reject_reason(
+            _witness_script_tx(dropped, b"\x00\x14" + b"\x22" * 20, satisfaction=[b"\x30" + b"\x11" * 70]),
+            flags,
+        ))
+        leaf = b""
+        for n in range(15):
+            leaf += b"\x20" + bytes([n + 1]) * 32 + (b"\xac" if n == 0 else b"\xba")
+        control = b"\xc0" + b"\x22" * 32
+        pay = b"\x00\x14" + b"\x22" * 20
+        attacked = _witness_script_tx(leaf, pay, satisfaction=[b"\x11" * 64], control=control)
+        self.assertEqual(tx_reject_reason(attacked, flags), "unverifiedkey")
+        honest = b"\x20" + b"\x01" * 32 + b"\xad" + b"\x20" + b"\x02" * 32 + b"\xac" + b"\x20" + b"\x03" * 32 + b"\xba"
+        kept = _witness_script_tx(honest, pay, satisfaction=[b"\x11" * 64, b"\x22" * 64], control=control)
+        self.assertIsNone(tx_reject_reason(kept, flags))
 
     def test_a_low_fee_parent_with_a_paying_child_is_package_paid(self):
         self.assertTrue(spamcore.paid_by_descendant({}, 17, 155, 500, 200))

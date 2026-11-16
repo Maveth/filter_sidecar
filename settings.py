@@ -277,7 +277,7 @@ RULE_FIELDS = (
         "key": "rejectfakemultisig",
         "type": "bool",
         "label": "Reject fake multisig",
-        "help": "Multisig used to carry data.",
+        "help": "Multisig used to carry data, and a key beside CHECKSIG that this spend does not prove.",
     },
     {
         "key": "rejectbareenvelopes",

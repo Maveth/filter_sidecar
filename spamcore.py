@@ -27,6 +27,7 @@ CHECKERS = frozenset({
     "counterparty",
     "stamps",
     "fake-multisig",
+    "unverified-key",
     "dead-branch",
     "bare-envelope",
     "bare-inscription",
@@ -509,6 +510,56 @@ def _is_powpeg_script(script: bytes) -> bool:
     return ops[index][0] == 0x68
 
 
+def _key_push(op: int, data: bytes, tapscript: bool) -> bool:
+    """A pubkey push: 32 bytes in tapscript, 33 bytes everywhere else."""
+    if tapscript:
+        return len(data) == 32
+    return op == 0x21 and len(data) == 33
+
+
+def _unverified_key(script: bytes, satisfaction: list[bytes], tapscript: bool) -> bool:
+    """Lion's bypass of the key count, without running the script.
+
+    A key beside CHECKSIG is only treated as proven when this spend shows a
+    signature-shaped item for it. The two shapes that slip the old count are
+    matched directly: OP_DEPTH OP_0NOTEQUAL OP_NOTIF around a key, and a key
+    then CHECKSIG DROP fed an empty signature. A tapscript key is 32 bytes.
+    A full-size item still counts as a signature here. Verifying it is the
+    node's job.
+    """
+    ops = _ops(script)
+    if not ops:
+        return False
+    for index, (op, _data) in enumerate(ops):
+        if op != 0x74 or index + 2 >= len(ops):
+            continue
+        if ops[index + 1][0] != 0x92 or ops[index + 2][0] != 0x64:
+            continue
+        level = 1
+        for later in ops[index + 3:]:
+            if later[0] in (0x63, 0x64):
+                level += 1
+            elif later[0] == 0x68:
+                level -= 1
+                if level == 0:
+                    break
+            elif level == 1 and _key_push(later[0], later[1], tapscript):
+                return True
+    if any(item == b"" for item in satisfaction):
+        for index in range(len(ops) - 2):
+            if ops[index + 1][0] == 0xAC and ops[index + 2][0] == 0x75 and _key_push(ops[index][0], ops[index][1], tapscript):
+                return True
+    if tapscript:
+        keys = sum(
+            1 for index, (op, data) in enumerate(ops[:-1])
+            if len(data) == 32 and ops[index + 1][0] in (0xAC, 0xAD, 0xBA)
+        )
+        signatures = sum(1 for item in satisfaction if len(item) in (64, 65))
+        if keys - signatures > 10:
+            return True
+    return False
+
+
 def _powpeg_excuses(script: bytes, flags: dict) -> bool:
     """True when this script is the PowPeg shape and that whitelist is on."""
     return flags.get("whitelist_powpeg") is True and _is_powpeg_script(script)
@@ -936,6 +987,13 @@ def tx_reject_reason(
                 script = _witness_script(items)
                 if script is not None:
                     witness_scripts.append(script)
+                    stack = items
+                    if len(stack) >= 2 and stack[-1][:1] == b"\x50" and _is_taproot_control_block(stack[-2]):
+                        stack = stack[:-1]
+                    tapscript = len(stack) >= 2 and stack[-2] == script and _is_taproot_control_block(stack[-1])
+                    satisfaction = stack[:-2] if tapscript else stack[:-1]
+                    if flags.get("rejectfakemultisig") and _unverified_key(script, satisfaction, tapscript):
+                        return "unverifiedkey"
                     reason = _script_spam(script, False, flags)
                     if reason == "fakemultisig" and _powpeg_excuses(script, flags):
                         reason = None

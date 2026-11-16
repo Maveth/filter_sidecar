@@ -521,7 +521,7 @@
         "unsigned_keys_min": 11,
         "per": "script"
       },
-      "note": "Plumb counts a key as signed only when a signature in the spend verifies against it. This catalog does not do that check yet. A 2-of-3 and an 11-of-15 federation spend are the cases that must stay out of this row. A key that sits beside CHECKSIG and still never verifies is SFS-32.",
+      "note": "Plumb counts a key as signed only when a signature in the spend verifies against it. A 2-of-3 stays out of this row. The same switch also marks SFS-32, the key beside CHECKSIG that the witness does not prove.",
       "slug": "fake-multisig",
       "checker": "fake-multisig"
     },
@@ -915,9 +915,9 @@
           "SFS-6"
         ]
       },
-      "note": "The hole in Knots #422. A pubkey is treated as real because CHECKSIG sits beside it, even when that check never succeeds: the opcode is in a branch guarded by OP_DEPTH, or it runs on an empty signature and the failure is dropped. Fourteen fake keys in a 1-of-15 then pass as ordinary multisig. SFS-5 counts 33-byte keys in a multisig and does not ask whether a signature verified. SFS-6 is a branch that constants make unreachable. This sidecar does not run the script, so this row is a name and the check is not written. Knots #470, by LionThunderFingers, recounts after the script runs and credits a key only when a signature verified against it.",
+      "note": "The hole in Knots #422, added to the fake-multisig check. A key beside CHECKSIG counts only when this spend shows a signature for it. OP_DEPTH OP_0NOTEQUAL OP_NOTIF around a key is marked, and so is a key then CHECKSIG DROP when the signature item is empty. In tapscript a key is 32 bytes; more than ten of those without a signature item are marked. A full-size item still counts as a signature. Verifying that item is the node's job, which is the rest of Knots #470.",
       "slug": "unverified-key",
-      "checker": null
+      "checker": "unverified-key"
     },
     {
       "id": "WCH-1",

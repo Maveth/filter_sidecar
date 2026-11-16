@@ -157,7 +157,7 @@ class ShapeCardTest(unittest.TestCase):
         self.assertEqual([item for item in numbered if item.startswith("SFS-")], [f"SFS-{n}" for n in range(1, 33)])
         lion = json.loads(Path("shapes/SFS-32.json").read_text())
         self.assertEqual(lion["title"], "Unverified key")
-        self.assertIsNone(lion["checker"])
+        self.assertEqual(lion["checker"], "unverified-key")
         self.assertIsNone(json.loads(Path("shapes/WLS-11.json").read_text())["checker"])
         paid = next(row for row in listed if row.get("slug") == "package-paid")
         self.assertEqual(paid["id"], "WLS-2")
