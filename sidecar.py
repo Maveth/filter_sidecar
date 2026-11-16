@@ -14,7 +14,7 @@ import urllib.request
 from pathlib import Path
 
 import board
-from hello import Directory, outbound_sidecar_addrs
+from hello import Directory, outbound_sidecar_addrs, port_offset
 from datetime import datetime, timezone
 import builtins
 
@@ -327,6 +327,7 @@ def main() -> int:
             if not isinstance(loaded, dict):
                 loaded = {}
             loaded.setdefault("search_port_plus_2", True)
+            loaded["port_offset"] = port_offset(loaded.get("port_offset", 4))
             loaded.setdefault("accept_packages", False)
             loaded.setdefault("import_received", False)
             return loaded
@@ -352,7 +353,7 @@ def main() -> int:
                 targets.extend(read_manual())
                 if local.get("search_port_plus_2", True):
                     try:
-                        targets.extend(outbound_sidecar_addrs(node.call("getpeerinfo", []) or []))
+                        targets.extend(outbound_sidecar_addrs(node.call("getpeerinfo", []) or [], local.get("port_offset", 4)))
                     except Exception as exc:
                         print(f"peer list failed: {exc}", flush=True)
                 seen: set[str] = set()

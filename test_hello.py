@@ -18,12 +18,14 @@ def free_port() -> int:
 
 
 class HelloTest(unittest.TestCase):
-    def test_outbound_probe_uses_port_plus_two_and_skips_inbound(self):
+    def test_outbound_probe_uses_port_plus_four_and_skips_inbound(self):
         addrs = outbound_sidecar_addrs([
             {"addr": "127.0.0.1:28333", "inbound": False},
             {"addr": "203.0.113.8:8333", "inbound": True},
         ])
-        self.assertEqual(addrs, ["127.0.0.1:28335"])
+        self.assertEqual(addrs, ["127.0.0.1:28337"])
+        chosen = outbound_sidecar_addrs([{"addr": "203.0.113.8:8333", "inbound": False}], 2)
+        self.assertEqual(chosen, ["203.0.113.8:8335"])
 
     def test_matching_proto_is_accepted_and_a_mismatch_is_refused(self):
         with TemporaryDirectory() as tmp:

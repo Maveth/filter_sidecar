@@ -7,7 +7,7 @@
     "https://bitcoin-blake.github.io/gbt-rules/schema/"
   ],
   "transfer": {
-    "listen": "the Bitcoin port plus 2",
+    "listen": "the Bitcoin port plus 4",
     "handshake": [
       "whitelist",
       "spam",

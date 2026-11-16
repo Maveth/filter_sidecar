@@ -86,7 +86,8 @@
   <section id="stopped" hidden></section>
   <section id="settings" hidden>
     <form id="local">
-      <label><input type="checkbox" name="search_port_plus_2"> Search Bitcoin peers at their port plus 2</label>
+      <label><input type="checkbox" name="search_port_plus_2"> Search Bitcoin peers</label>
+      <label>Port added <input name="port_offset" type="number" min="1" max="100" value="4"> The base is the peer port plus this. 4 dials 8337 when the peer is on 8333.</label>
       <label><input type="checkbox" name="accept_packages"> Accept signed whitelist packages from peers</label>
       <label><input type="checkbox" name="import_received"> Import shapes a peer sends. They stay off until you turn the row on.</label>
       <p><button type="submit">Save</button></p>
@@ -184,6 +185,7 @@ document.getElementById("gear").addEventListener("click", async () => {
   const local = await fetch("/api/local").then((response) => response.json());
   const form = document.getElementById("local");
   form.search_port_plus_2.checked = local.search_port_plus_2 !== false;
+  form.port_offset.value = local.port_offset || 4;
   form.accept_packages.checked = local.accept_packages === true;
   form.import_received.checked = local.import_received === true;
   await refreshTail();
@@ -199,6 +201,7 @@ document.getElementById("local").addEventListener("submit", async (event) => {
     headers: {"content-type": "application/json"},
     body: JSON.stringify({
       search_port_plus_2: form.search_port_plus_2.checked,
+      port_offset: Number(form.port_offset.value || 4),
       accept_packages: form.accept_packages.checked,
       import_received: form.import_received.checked,
     }),
@@ -209,6 +212,7 @@ document.getElementById("local").addEventListener("submit", async (event) => {
     return;
   }
   form.search_port_plus_2.checked = saved.search_port_plus_2 !== false;
+  form.port_offset.value = saved.port_offset || 4;
   form.accept_packages.checked = saved.accept_packages === true;
   form.import_received.checked = saved.import_received === true;
   document.getElementById("set-status").textContent = "Saved.";
@@ -683,8 +687,8 @@ function show(board) {
   const added = (board.manual_peers || []).filter((address) => !(board.peers || []).some((peer) => peer.address === address));
   const waiting = added.map((address) => `<tr><td>${esc(address)}</td><td></td><td></td><td></td><td></td><td></td><td></td><td>added</td><td><button type="button" data-act="delete-peer" data-address="${esc(address)}">Delete</button></td></tr>`).join("");
   const peerTable = `${mine}
-    <form id="add-peer"><input name="address" placeholder="host:port" aria-label="Peer address"> <button type="submit">Add peer</button> <button type="button" id="search-peers">Search port + 2</button></form>
-    <p class="note">${local.search_port_plus_2 === false ? "Port plus 2 search is off." : "Search dials this node's outbound Bitcoin peers at their port plus 2."} Learning sidecars from other sidecars is not built. ${local.accept_packages ? "Signed packages from peers are kept." : "Signed packages are not accepted. Shape lists still are."} ${local.import_received ? "Import is on. A received shape stays off until you turn its row on." : "Import is off. A downloaded shape stays in the inbox."}</p>
+    <form id="add-peer"><input name="address" placeholder="host:port" aria-label="Peer address"> <button type="submit">Add peer</button> <button type="button" id="search-peers">Search port + ${Number(local.port_offset) || 4}</button></form>
+    <p class="note">${local.search_port_plus_2 === false ? "Peer-port search is off." : `Search dials this node's outbound Bitcoin peers at their port plus ${Number(local.port_offset) || 4}.`} Learning sidecars from other sidecars is not built. ${local.accept_packages ? "Signed packages from peers are kept." : "Signed packages are not accepted. Shape lists still are."} ${local.import_received ? "Import is on. A received shape stays off until you turn its row on." : "Import is off. A downloaded shape stays in the inbox."}</p>
     ${(board.peers || []).length || added.length ? `<table><tr><th>Address</th><th>Name</th><th>Direction</th><th>Protocol</th><th>Catalog</th><th>Commit</th><th>Carries</th><th>Handshake</th><th></th></tr>${peerRows}${waiting}</table>` : `<p>${esc(board.peers_note)}</p>`}`;
   document.getElementById("peers").innerHTML = peerTable;
   const sent = board.sent.length

@@ -46,7 +46,7 @@ To show this node's policy lines, add `node-paths.json` next to the program. The
 
 ## Peers
 
-A sidecar listens on its own port. The usual search looks at each Bitcoin peer on that peer's port plus 2. The hello carries the catalog and the git commit of this checkout. Shape definitions are offered. A signed whitelist package is dropped unless the operator turns on accept packages. A received shape stays off. A sidecar does not learn other sidecars from a sidecar.
+A sidecar listens on its own port. The usual search looks at each Bitcoin peer on that peer's port plus 4, which is 8337 when the peer is on 8333. The gear can set a different number. The hello carries the catalog and the git commit of this checkout. Shape definitions are offered. A signed whitelist package is dropped unless the operator turns on accept packages. A received shape stays off. A sidecar does not learn other sidecars from a sidecar.
 
 ## Not in this repository
 

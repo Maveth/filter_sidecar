@@ -298,6 +298,9 @@ class Handler(BaseHTTPRequestHandler):
                 for key in ("search_port_plus_2", "accept_packages", "import_received"):
                     if isinstance(incoming.get(key), bool):
                         current[key] = incoming[key]
+                if "port_offset" in incoming:
+                    from hello import port_offset
+                    current["port_offset"] = port_offset(incoming.get("port_offset"))
                 if incoming.get("search_now") is True:
                     current["search_now"] = True
                 path = board._base() / "sift-local.json"

@@ -1082,7 +1082,7 @@ def _base() -> Path:
 
 
 def read_local() -> dict:
-    defaults = {"search_port_plus_2": True, "accept_packages": False, "import_received": False}
+    defaults = {"search_port_plus_2": True, "accept_packages": False, "import_received": False, "port_offset": 4}
     path = _base() / "sift-local.json"
     try:
         loaded = json.loads(path.read_text())
@@ -1090,9 +1090,11 @@ def read_local() -> dict:
         return dict(defaults)
     if not isinstance(loaded, dict):
         return dict(defaults)
-    for key in defaults:
+    for key in ("search_port_plus_2", "accept_packages", "import_received"):
         if isinstance(loaded.get(key), bool):
             defaults[key] = loaded[key]
+    from hello import port_offset
+    defaults["port_offset"] = port_offset(loaded.get("port_offset", 4))
     return defaults
 
 

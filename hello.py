@@ -2,7 +2,7 @@
 
 One JSON object per line. proto must match. The catalog version is
 advertised and does not have to match. A sidecar dials its Knots peers
-at that peer's port plus 2, and keeps the listen address from a hello
+at that peer's port plus 4, unless this node picked another offset, and keeps the listen address from a hello
 so the other side can be dialed back.
 """
 from __future__ import annotations
@@ -303,8 +303,20 @@ class Directory:
         tmp.replace(self.path)
 
 
-def outbound_sidecar_addrs(peers: list[dict]) -> list[str]:
-    """Bitcoin peers we dialed, at their port plus 2. Inbound ports are ephemeral."""
+def port_offset(value, default: int = 4) -> int:
+    """Ports added to a Bitcoin peer port. 4 dials 8337 when the peer is on 8333."""
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return default
+    if number < 1 or number > 100:
+        return default
+    return number
+
+
+def outbound_sidecar_addrs(peers: list[dict], offset: int = 4) -> list[str]:
+    """Bitcoin peers we dialed, at their port plus the offset. Inbound ports are ephemeral."""
+    step = port_offset(offset)
     found = []
     for peer in peers:
         if peer.get("inbound") is True:
@@ -313,5 +325,5 @@ def outbound_sidecar_addrs(peers: list[dict]) -> list[str]:
         if parsed is None:
             continue
         host, port = parsed
-        found.append(f"{host}:{port + 2}")
+        found.append(f"{host}:{port + step}")
     return found
