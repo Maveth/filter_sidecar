@@ -292,6 +292,13 @@ class RulesTest(unittest.TestCase):
     def test_delta_must_be_negative(self):
         self.assertLess(sidecar.DEFAULT_DELTA, -(50 * 100_000_000))
 
+    def test_whitelist_priority_tops_up_to_1000_once(self):
+        self.assertEqual(sidecar.WHITELIST_DELTA, 1000)
+        self.assertEqual(sidecar.priority_top_up(0, 1000), 1000)
+        self.assertEqual(sidecar.priority_top_up(240, 1000), 760)
+        self.assertEqual(sidecar.priority_top_up(1000, 1000), 0)
+        self.assertEqual(sidecar.priority_top_up(1500, 1000), 0)
+
     def test_a_child_is_marked_with_its_parent_and_unmarked_with_it(self):
         want = sidecar.wanted_marks(
             {"aa": "dust", "bb": None},

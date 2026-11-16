@@ -10,6 +10,7 @@ import json
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -29,6 +30,9 @@ from spamcore import ANCHOR_SCRIPT, package_from_entry, paid_by_descendant, prev
 # Larger than a block of fees, so a child cannot pay a marked parent back in.
 # Satoshis. Knots adds this to the fee it uses for mining selection only.
 DEFAULT_DELTA = -1_000_000_000_000_000
+# Put back on a whitelist transaction and its descendants. 1000 covers the
+# 240 sat dust-anchor penalty and leaves the pair above 1 sat/vB.
+WHITELIST_DELTA = 1000
 HERE = Path(__file__).resolve().parent
 
 
@@ -61,8 +65,15 @@ class Node:
         req = urllib.request.Request(self.url, data=body, headers={"Content-Type": "application/json"})
         if self._auth:
             req.add_header("Authorization", self._auth)
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            payload = json.loads(resp.read().decode())
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                payload = json.loads(resp.read().decode())
+        except urllib.error.HTTPError as exc:
+            raw = exc.read().decode(errors="replace")
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError as err:
+                raise RuntimeError(f"{method}: {raw}") from err
         if payload.get("error"):
             raise RuntimeError(f"{method}: {payload['error']}")
         return payload.get("result")
@@ -218,6 +229,83 @@ def already_marked(entry: dict, delta: int) -> bool:
     return fee_delta_sat(entry) <= delta // 2
 
 
+def priority_top_up(have: int, want: int) -> int:
+    """Sats still to add so this node's priority delta reaches want. Knots adds each call."""
+    if want <= 0 or have >= want:
+        return 0
+    return want - have
+
+
+def _priority_add(node: Node, txid: str, add: int) -> str:
+    """ok, or dust when Knots refuses priority on a dust output."""
+    try:
+        node.call("prioritisetransaction", [txid, 0, add])
+    except Exception as exc:
+        body = ""
+        read = getattr(exc, "read", None)
+        if read is not None:
+            try:
+                body = read().decode(errors="replace")
+            except Exception:
+                body = ""
+        text = f"{exc} {body}".lower()
+        if "dust" in text:
+            return "dust"
+        raise
+    return "ok"
+
+
+def boost_whitelist(node: Node, txids: set[str], boosted: set[str], dry_run: bool, want: int) -> None:
+    """Add mining priority to whitelist transactions. The priority is local and is not relayed.
+
+    Knots refuses priority on a transaction with a dust output, such as the
+    zero-value anchor. The same amount is then added to its descendants.
+    """
+    pending = {txid for txid in txids if txid not in boosted}
+    if want <= 0 or not pending:
+        return
+    try:
+        current = node.call("getprioritisedtransactions", []) or {}
+    except Exception as exc:
+        print(f"whitelist priority skipped: {exc}", flush=True)
+        return
+    if not isinstance(current, dict):
+        current = {}
+
+    def have_of(txid: str) -> int:
+        row = current.get(txid)
+        return int(row.get("fee_delta") or 0) if isinstance(row, dict) else 0
+
+    def give(txid: str) -> None:
+        if txid in boosted:
+            return
+        add = priority_top_up(have_of(txid), want)
+        if add == 0:
+            boosted.add(txid)
+            return
+        if dry_run:
+            print(f"would whitelist {txid} delta=+{add}", flush=True)
+            boosted.add(txid)
+            return
+        if _priority_add(node, txid, add) == "dust":
+            print(f"whitelist {txid} dust output, priority refused", flush=True)
+            try:
+                kids = node.call("getmempooldescendants", [txid, False]) or []
+            except Exception:
+                kids = []
+            for kid in kids:
+                give(str(kid))
+        else:
+            print(f"whitelist {txid} delta=+{add}", flush=True)
+        boosted.add(txid)
+
+    for txid in sorted(pending):
+        try:
+            give(txid)
+        except Exception as exc:
+            print(f"whitelist {txid} skipped: {exc}", flush=True)
+
+
 def wanted_marks(reasons: dict[str, str | None], children: dict[str, list[str]]) -> dict[str, str]:
     """txid -> reason. A child of a marked tx is marked even with no reason of its own."""
     want: dict[str, str] = {}
@@ -277,7 +365,10 @@ def scan(
     rescan: bool,
     packages: list | None = None,
     paid: list | None = None,
+    boosted: set[str] | None = None,
 ) -> dict[str, int]:
+    if boosted is None:
+        boosted = set()
     txids = node.call("getrawmempool", [False]) or []
     live = set(txids)
     if rescan:
@@ -378,6 +469,10 @@ def scan(
             pass
     for txid in protected:
         want.pop(txid, None)
+    lift = {txid for txid in (protected | two_ids) if txid in live and txid not in want}
+    for gone in [txid for txid in list(boosted) if txid not in live or txid not in lift]:
+        boosted.discard(gone)
+    boost_whitelist(node, lift, boosted, dry_run, WHITELIST_DELTA)
     for txid, reason in want.items():
         if txid in marked:
             marked[txid] = reason
@@ -425,6 +520,7 @@ def main() -> int:
         print("dry_run is on: the node will not be changed", flush=True)
     decided: dict[str, str | None] = {}
     marked: dict[str, str] = {}
+    boosted: set[str] = set()
     whitelist_ids: set[str] = set()
     one_ids: set[str] = set()
     two_ids: set[str] = set()
@@ -558,7 +654,7 @@ def main() -> int:
                 print("rules loaded", flush=True)
             found_packages: list[tuple[str, str]] = []
             found_paid: list[tuple[str, str]] = []
-            counts = scan(node, flags, delta, dry_run, decided, marked, whitelist_ids, one_ids, two_ids, rescan, found_packages, found_paid)
+            counts = scan(node, flags, delta, dry_run, decided, marked, whitelist_ids, one_ids, two_ids, rescan, found_packages, found_paid, boosted)
             if listen:
                 for raw_hex, txid in found_packages:
                     try:

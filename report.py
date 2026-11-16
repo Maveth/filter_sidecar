@@ -144,6 +144,7 @@ def classify(rules: dict, knots: dict[str, str]) -> list[tuple[str, str, str]]:
             "A v3 zero-fee parent with one dust anchor, spent by a paying child, is the Ark whitelist shape. "
             f"This node has -permitephemeral={ephemeral} and -subdustfeepenalty={knots.get('subdustfeepenalty')}. "
             "Leave those settings strict. The sidecar inserts the signed parent with sendrawtransaction and ignore_rejects, then the child. "
+            "It also adds 1000 sats of mining priority to that whitelist transaction and its descendants. "
             "Do not turn -subdustfeepenalty off. That would admit a wider set and relay all of it.",
         )
     if str(knots.get("mempooltruc")) != "enforce":
