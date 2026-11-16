@@ -24,7 +24,7 @@ def _stamp(*args, **kwargs):
 
 print = _stamp
 
-from spamcore import package_from_entry, prevout_scripts, single_opreturn, tx_is_ark_whitelist, whitelist_items, tx_reject_reason
+from spamcore import package_from_entry, paid_by_descendant, prevout_scripts, single_opreturn, tx_is_ark_whitelist, whitelist_items, tx_reject_reason
 
 # Larger than a block of fees, so a child cannot pay a marked parent back in.
 # Satoshis. Knots adds this to the fee it uses for mining selection only.
@@ -142,6 +142,15 @@ def wanted_marks(reasons: dict[str, str | None], children: dict[str, list[str]])
     return want
 
 
+def paid_sets(links: dict[str, set[str]]) -> list[list[str]]:
+    """One set per low-fee root. A descendant of another low-fee tx stays in that parent's set."""
+    roots = [
+        txid for txid in links
+        if not any(txid in kids for other, kids in links.items() if other != txid)
+    ]
+    return [[root] + sorted(links[root]) for root in sorted(roots)]
+
+
 def scan(
     node: Node,
     flags: dict,
@@ -154,6 +163,7 @@ def scan(
     two_ids: set[str],
     rescan: bool,
     packages: list | None = None,
+    paid: list | None = None,
 ) -> dict[str, int]:
     txids = node.call("getrawmempool", [False]) or []
     live = set(txids)
@@ -169,6 +179,7 @@ def scan(
         two_ids.discard(gone)
     reasons: dict[str, str | None] = {}
     ark_packages: list[tuple[str, str]] = packages if packages is not None else []
+    paid_packages: list[tuple[str, str]] = paid if paid is not None else []
     parents: dict[str, str | None] = {}
     want_parents = flags.get("whitelist_lightning_anchor_sweep") is True or flags.get("whitelist_p2a_sweep") is True
 
@@ -206,6 +217,11 @@ def scan(
                 ark_packages.append((raw_hex, txid))
             else:
                 whitelist_ids.discard(txid)
+            own_vsize = entry.get("vsize")
+            if not isinstance(own_vsize, int) and isinstance(weight, int):
+                own_vsize = (int(weight) + 3) // 4
+            if paid_by_descendant(flags, fee_sat, own_vsize if isinstance(own_vsize, int) else None, package_fee, package_vsize):
+                paid_packages.append((raw_hex, txid))
             span = whitelist_items(
                 raw, flags, fee=fee_sat,
                 weight=int(weight) if isinstance(weight, int) else None,
@@ -415,7 +431,8 @@ def main() -> int:
                 stamp = now
                 print("rules loaded", flush=True)
             found_packages: list[tuple[str, str]] = []
-            counts = scan(node, flags, delta, dry_run, decided, marked, whitelist_ids, one_ids, two_ids, rescan, found_packages)
+            found_paid: list[tuple[str, str]] = []
+            counts = scan(node, flags, delta, dry_run, decided, marked, whitelist_ids, one_ids, two_ids, rescan, found_packages, found_paid)
             if listen:
                 for raw_hex, txid in found_packages:
                     child_hex = ""
@@ -428,6 +445,28 @@ def main() -> int:
                         if isinstance(child, str):
                             child_hex = child
                     directory.add_package("WLS-1", raw_hex, child_hex)
+                raws = {txid: raw_hex for raw_hex, txid in found_paid}
+                links = {}
+                for txid in raws:
+                    try:
+                        kids = node.call("getmempooldescendants", [txid, False]) or []
+                    except Exception:
+                        kids = []
+                    links[txid] = set(kids)
+                for group in paid_sets(links):
+                    hexes = []
+                    for txid in group:
+                        raw_hex = raws.get(txid)
+                        if raw_hex is None:
+                            fetched = node.call("getrawtransaction", [txid])
+                            raw_hex = fetched if isinstance(fetched, str) else ""
+                        if not raw_hex:
+                            hexes = []
+                            break
+                        hexes.append(raw_hex)
+                    if len(hexes) < 2:
+                        continue
+                    directory.add_package("WLS-2", hexes[0], hexes[1], hexes[2:])
             peers_sent = 0
             if status_path.with_name(status_path.name.replace(".status.json", ".peers.json")).is_file():
                 try:

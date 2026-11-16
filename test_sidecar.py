@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 import sidecar
+import spamcore
 from spamcore import tx_reject_reason, whitelist_items
 
 
@@ -220,6 +221,20 @@ class RulesTest(unittest.TestCase):
         looking = _sweep(b"ab", [[]], prev=(spent, 1))
         found = prevout_scripts(looking, lambda txid: parent.hex() if txid == spent[::-1].hex() else None)
         self.assertEqual(found, [ANCHOR_SCRIPT])
+
+    def test_a_low_fee_parent_with_a_paying_child_is_package_paid(self):
+        self.assertTrue(spamcore.paid_by_descendant({}, 17, 155, 500, 200))
+        self.assertFalse(spamcore.paid_by_descendant({}, 200, 100, 500, 200))
+
+    def test_each_paid_chain_is_its_own_package(self):
+        sets = sidecar.paid_sets({
+            "parent-a": {"mid", "child-a"},
+            "mid": {"child-a"},
+            "parent-b": {"child-b"},
+        })
+        self.assertEqual(sets, [["parent-a", "child-a", "mid"], ["parent-b", "child-b"]])
+        one = sidecar.paid_sets({"only": set()})
+        self.assertEqual(one, [["only"]])
 
     def test_delta_must_be_negative(self):
         self.assertLess(sidecar.DEFAULT_DELTA, -(50 * 100_000_000))

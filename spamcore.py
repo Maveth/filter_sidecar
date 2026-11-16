@@ -614,6 +614,23 @@ def package_from_entry(entry: dict) -> tuple[int | None, int | None]:
     return int(round(float(fees) * 100_000_000)), vsize
 
 
+def paid_by_descendant(
+    flags: dict, fee_sat: int | None, vsize: int | None,
+    package_fee_sat: int | None, package_vsize: int | None,
+) -> bool:
+    """This transaction is under the fee line and a descendant has lifted the package over it."""
+    if not isinstance(fee_sat, int) or not isinstance(vsize, int) or vsize <= 0:
+        return False
+    if not isinstance(package_fee_sat, int) or not isinstance(package_vsize, int) or package_vsize <= 0:
+        return False
+    floor = flags.get("package_paid_sat_vb")
+    if isinstance(floor, bool) or not isinstance(floor, (int, float)) or floor <= 0:
+        floor = 1
+    if fee_sat / vsize >= float(floor):
+        return False
+    return package_fee_sat / package_vsize >= float(floor)
+
+
 def package_clears_fee(flags: dict, package_fee_sat: int | None, package_vsize: int | None) -> bool:
     """The child's package meets the fee line, so this parent's own fee is not the mark."""
     if flags.get("whitelist_package_paid") is not True:

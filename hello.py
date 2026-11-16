@@ -53,10 +53,11 @@ def running_commit() -> str:
         return ""
 
 
-def package_id(shape_id: str, parent_hex: str, child_hex: str = "") -> str:
-    """Hash of the whitelist package. The receiver computes the same hash before keeping it."""
-    body = f"{shape_id}\n{parent_hex.strip().lower()}\n{child_hex.strip().lower()}"
-    return hashlib.sha256(body.encode()).hexdigest()
+def package_id(shape_id: str, parent_hex: str, child_hex: str = "", extra: list[str] | tuple[str, ...] = ()) -> str:
+    """Hash of one whitelist set. A second set is a different hash."""
+    parts = [shape_id, parent_hex.strip().lower(), child_hex.strip().lower()]
+    parts.extend(item.strip().lower() for item in extra)
+    return hashlib.sha256("\n".join(parts).encode()).hexdigest()
 
 
 def _hex_or_empty(value: str) -> bool:
@@ -312,12 +313,15 @@ class Directory:
         for address in others:
             threading.Thread(target=self.dial, args=(address, "out"), daemon=True).start()
 
-    def add_package(self, shape_id: str, parent_hex: str, child_hex: str = "") -> str | None:
+    def add_package(self, shape_id: str, parent_hex: str, child_hex: str = "", extra: list[str] | tuple[str, ...] = ()) -> str | None:
         parent_hex = parent_hex.strip().lower()
         child_hex = child_hex.strip().lower()
-        if not shape_id or not _hex_or_empty(parent_hex) or not parent_hex or not _hex_or_empty(child_hex):
+        extras = [item.strip().lower() for item in extra]
+        if not shape_id or not parent_hex or not _hex_or_empty(parent_hex) or not _hex_or_empty(child_hex):
             return None
-        digest = package_id(shape_id, parent_hex, child_hex)
+        if any(not item or not _hex_or_empty(item) for item in extras):
+            return None
+        digest = package_id(shape_id, parent_hex, child_hex, extras)
         if digest in self.packages:
             return digest
         self.packages[digest] = {
@@ -326,6 +330,7 @@ class Directory:
             "shape": shape_id,
             "parent": parent_hex,
             "child": child_hex,
+            "extra": extras,
         }
         print(f"package {shape_id} {digest[:12]}", flush=True)
         return digest
@@ -396,12 +401,13 @@ class Directory:
                 shape_id = str(item.get("shape") or "")
                 parent = str(item.get("parent") or "")
                 child = str(item.get("child") or "")
+                extra = [str(part) for part in item.get("extra") or []] if isinstance(item.get("extra"), list) else []
                 if not self._accepts_packages():
                     continue
-                if package_id(shape_id, parent, child) != str(item.get("id") or ""):
+                if package_id(shape_id, parent, child, extra) != str(item.get("id") or ""):
                     print(f"package rejected hash {shape_id}", flush=True)
                     continue
-                if self.add_package(shape_id, parent, child):
+                if self.add_package(shape_id, parent, child, extra):
                     self.have_ids.add(f"pkg:{item['id']}")
                 continue
             row = spamcore.sanitize_shape(item)
