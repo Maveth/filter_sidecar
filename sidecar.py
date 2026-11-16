@@ -24,7 +24,7 @@ def _stamp(*args, **kwargs):
 
 print = _stamp
 
-from spamcore import package_from_entry, paid_by_descendant, prevout_scripts, single_opreturn, tx_is_ark_whitelist, whitelist_items, tx_reject_reason
+from spamcore import ANCHOR_SCRIPT, package_from_entry, paid_by_descendant, prevout_scripts, single_opreturn, tx_input_outpoints, tx_is_ark_whitelist, whitelist_items, tx_reject_reason, _tx_parts
 
 # Larger than a block of fees, so a child cannot pay a marked parent back in.
 # Satoshis. Knots adds this to the fee it uses for mining selection only.
@@ -231,6 +231,28 @@ def wanted_marks(reasons: dict[str, str | None], children: dict[str, list[str]])
             if child not in want:
                 want[child] = f"child of {reason}"
     return want
+
+
+def anchor_child_hex(node: Node, parent_txid: str, parent_hex: str, kids: list) -> str:
+    """The child that spends this parent's zero-value anchor, not the next tree transaction."""
+    try:
+        parts = _tx_parts(bytes.fromhex(parent_hex))
+    except ValueError:
+        return ""
+    if not parts:
+        return ""
+    anchor = next((i for i, (value, script) in enumerate(parts[1]) if value == 0 and script == ANCHOR_SCRIPT), None)
+    if anchor is None:
+        return ""
+    want = bytes.fromhex(parent_txid)[::-1]
+    for kid in kids:
+        raw_hex = node.call("getrawtransaction", [kid])
+        if not isinstance(raw_hex, str):
+            continue
+        points = tx_input_outpoints(bytes.fromhex(raw_hex)) or []
+        if any(prev == want and vout == anchor for prev, vout in points):
+            return raw_hex
+    return ""
 
 
 def paid_sets(links: dict[str, set[str]]) -> list[list[str]]:
@@ -534,16 +556,11 @@ def main() -> int:
             counts = scan(node, flags, delta, dry_run, decided, marked, whitelist_ids, one_ids, two_ids, rescan, found_packages, found_paid)
             if listen:
                 for raw_hex, txid in found_packages:
-                    child_hex = ""
                     try:
                         kids = node.call("getmempooldescendants", [txid, False]) or []
                     except Exception:
                         kids = []
-                    if kids:
-                        child = node.call("getrawtransaction", [kids[0]])
-                        if isinstance(child, str):
-                            child_hex = child
-                    directory.add_package("WLS-1", raw_hex, child_hex)
+                    directory.add_package("WLS-1", raw_hex, anchor_child_hex(node, txid, raw_hex, kids))
                 raws = {txid: raw_hex for raw_hex, txid in found_paid}
                 links = {}
                 for txid in raws:

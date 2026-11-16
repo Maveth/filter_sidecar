@@ -261,6 +261,24 @@ class RulesTest(unittest.TestCase):
         self.assertIn("conflict", stopped)
         self.assertTrue(stopped.endswith("stopped"))
 
+    def test_ark_package_uses_the_anchor_child(self):
+        from spamcore import ANCHOR_SCRIPT
+        parent = _one_output(b"\x51\x20" + b"\x11" * 32)  # not the anchor; build a two-output tx below
+        # parent spends nothing we care about; child spends vout 1 of txid 22..22
+        child = _sweep(b"", [[]], prev=(bytes.fromhex("22" * 32), 1))
+        parent_hex = (b"\x02\x00\x00\x00" + b"\x01" + b"\x11" * 32 + b"\x00\x00\x00\x00" + b"\x00" + b"\xff\xff\xff\xff"
+            + b"\x02"
+            + (1000).to_bytes(8, "little") + b"\x22" + b"\x51\x20" + b"\x33" * 32
+            + (0).to_bytes(8, "little") + bytes([len(ANCHOR_SCRIPT)]) + ANCHOR_SCRIPT
+            + b"\x00\x00\x00\x00").hex()
+
+        class Fake:
+            def call(self, method, params):
+                return child.hex() if params[0] == "child" else "00"
+
+        found = sidecar.anchor_child_hex(Fake(), "22" * 32, parent_hex, ["other", "child"])
+        self.assertEqual(found, child.hex())
+
     def test_each_paid_chain_is_its_own_package(self):
         sets = sidecar.paid_sets({
             "parent-a": {"mid", "child-a"},
