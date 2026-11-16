@@ -24,7 +24,7 @@ def _stamp(*args, **kwargs):
 
 print = _stamp
 
-from spamcore import package_from_entry, tx_is_ark_whitelist, whitelist_items, tx_reject_reason
+from spamcore import package_from_entry, prevout_scripts, single_opreturn, tx_is_ark_whitelist, whitelist_items, tx_reject_reason
 
 # Larger than a block of fees, so a child cannot pay a marked parent back in.
 # Satoshis. Knots adds this to the fee it uses for mining selection only.
@@ -167,6 +167,15 @@ def scan(
     for gone in [txid for txid in list(two_ids) if txid not in live]:
         two_ids.discard(gone)
     reasons: dict[str, str | None] = {}
+    parents: dict[str, str | None] = {}
+    want_parents = flags.get("whitelist_lightning_anchor_sweep") is True or flags.get("whitelist_p2a_sweep") is True
+
+    def parent_hex(txid: str) -> str | None:
+        if txid not in parents:
+            got = node.call("getrawtransaction", [txid])
+            parents[txid] = got if isinstance(got, str) else None
+        return parents[txid]
+
     for txid in txids:
         if txid in decided and not rescan:
             reasons[txid] = decided[txid]
@@ -182,11 +191,13 @@ def scan(
             sigops = entry.get("sigops")
             raw = bytes.fromhex(raw_hex)
             package_fee, package_vsize = package_from_entry(entry)
+            prevouts = prevout_scripts(raw, parent_hex) if want_parents and single_opreturn(raw) else None
             reason = tx_reject_reason(
                 raw, flags, fee=fee_sat,
                 weight=int(weight) if isinstance(weight, int) else None,
                 sigops=int(sigops) if isinstance(sigops, int) else None,
                 package_fee_sat=package_fee, package_vsize=package_vsize,
+                prevouts=prevouts,
             )
             if tx_is_ark_whitelist(raw, flags, fee_sat):
                 whitelist_ids.add(txid)
@@ -198,6 +209,7 @@ def scan(
                 sigops=int(sigops) if isinstance(sigops, int) else None,
                 package_fee_sat=package_fee, package_vsize=package_vsize,
                 descendant_count=int(entry.get("descendantcount") or 0),
+                prevouts=prevouts,
             )
             if span == 2:
                 two_ids.add(txid)

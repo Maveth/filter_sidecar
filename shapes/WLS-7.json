@@ -6,10 +6,12 @@
   "from": "cesspool",
   "schema": {
     "spends": "pay-to-anchor outputs",
+    "parent_script_hex": "51024e73",
+    "witness": "empty",
     "only_output": "opreturn",
     "opreturn_payload_bytes_max": 4
   },
-  "note": "Same class as the Lightning sweep. Not the Ark exit. The Ark exit is a version-3 parent plus a paying child, and that one is the package.",
+  "note": "The pay-to-anchor script is on the parent output, not in this transaction. Not the Ark exit, and not an insert package.",
   "slug": "p2a-sweep",
-  "checker": null
+  "checker": "p2a-sweep"
 }

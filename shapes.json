@@ -128,13 +128,15 @@
       "title": "Lightning anchor sweep",
       "from": "cesspool",
       "schema": {
-        "spends": "lightning anchor outputs",
+        "spends": "BOLT 3 anchor outputs",
+        "witness_script": "33-byte compressed key, CHECKSIG IFDUP NOTIF 16 CSV ENDIF",
+        "parent_script": "P2WSH of that witness script",
         "only_output": "opreturn",
         "opreturn_payload_bytes_max": 3
       },
-      "note": "Padding so a one-input sweep reaches the 65-byte minimum. Knots refuses a transaction whose only output is an OP_RETURN, so this stays off the public port. It is not an insert package.",
+      "note": "The spending witness reveals the anchor script. The parent output must be the pay-to-witness-script-hash of that script. Not an insert package.",
       "slug": "lightning-anchor-sweep",
-      "checker": null
+      "checker": "lightning-anchor-sweep"
     },
     {
       "id": "WLS-7",
@@ -144,12 +146,14 @@
       "from": "cesspool",
       "schema": {
         "spends": "pay-to-anchor outputs",
+        "parent_script_hex": "51024e73",
+        "witness": "empty",
         "only_output": "opreturn",
         "opreturn_payload_bytes_max": 4
       },
-      "note": "Same class as the Lightning sweep. Not the Ark exit. The Ark exit is a version-3 parent plus a paying child, and that one is the package.",
+      "note": "The pay-to-anchor script is on the parent output, not in this transaction. Not the Ark exit, and not an insert package.",
       "slug": "p2a-sweep",
-      "checker": null
+      "checker": "p2a-sweep"
     },
     {
       "id": "WLS-8",

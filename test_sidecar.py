@@ -30,6 +30,28 @@ def _p2wsh_run(count: int, value: int) -> bytes:
     return raw + b"\x00\x00\x00\x00"
 
 
+def _sweep(payload: bytes, witnesses: list[list[bytes]], prev: tuple[bytes, int] | None = None) -> bytes:
+    prev_hash, vout = prev or (b"\x11" * 32, 0)
+    raw = b"\x02\x00\x00\x00\x00\x01\x01"
+    raw += prev_hash + vout.to_bytes(4, "little") + b"\x00" + b"\xff\xff\xff\xff"
+    script = b"\x6a" + bytes([len(payload)]) + payload
+    raw += b"\x01" + (0).to_bytes(8, "little") + bytes([len(script)]) + script
+    for items in witnesses:
+        raw += bytes([len(items)])
+        for item in items:
+            raw += bytes([len(item)]) + item
+    return raw + b"\x00\x00\x00\x00"
+
+
+def _one_parent(scripts: list[bytes]) -> bytes:
+    raw = b"\x01\x00\x00\x00\x01"
+    raw += b"\x00" * 32 + b"\x00\x00\x00\x00" + b"\x00" + b"\xff\xff\xff\xff"
+    raw += bytes([len(scripts)])
+    for script in scripts:
+        raw += (0).to_bytes(8, "little") + bytes([len(script)]) + script
+    return raw + b"\x00\x00\x00\x00"
+
+
 def _one_output(script: bytes) -> bytes:
     raw = b"\x01\x00\x00\x00" + bytes([1])
     raw += b"\x00" * 32 + b"\x00\x00\x00\x00" + b"\x00" + b"\xff\xff\xff\xff"
@@ -169,6 +191,35 @@ class RulesTest(unittest.TestCase):
         self.assertEqual(tx_reject_reason(raw, flags, fee=50_000), "dust")
         flags["whitelist_ark_zero_anchor"] = False
         self.assertEqual(tx_reject_reason(raw, flags, fee=0), "dust")
+
+    def test_anchor_sweeps_use_the_parent_script(self):
+        import hashlib
+        from spamcore import ANCHOR_SCRIPT, prevout_scripts
+        key = b"\x02" + b"\x11" * 32
+        witness = b"\x21" + key + bytes.fromhex("ac736460b268")
+        p2wsh = b"\x00\x20" + hashlib.sha256(witness).digest()
+        signature = b"\x30" + b"\x22" * 70
+        lightning = _sweep(b"abc", [[signature, witness]])
+        on = {"datacarrier": False, "whitelist_lightning_anchor_sweep": True}
+        self.assertIsNone(tx_reject_reason(lightning, on, prevouts=[p2wsh]))
+        self.assertEqual(tx_reject_reason(lightning, {"datacarrier": False}, prevouts=[p2wsh]), "datacarrier")
+        self.assertEqual(tx_reject_reason(lightning, on, prevouts=[ANCHOR_SCRIPT]), "datacarrier")
+        self.assertEqual(tx_reject_reason(lightning, on), "datacarrier")
+        self.assertEqual(tx_reject_reason(_sweep(b"abcd", [[signature, witness]]), on, prevouts=[p2wsh]), "datacarrier")
+        p2a = _sweep(b"abcd", [[]])
+        paid = {"datacarrier": False, "whitelist_p2a_sweep": True}
+        self.assertIsNone(tx_reject_reason(p2a, paid, prevouts=[ANCHOR_SCRIPT]))
+        self.assertEqual(tx_reject_reason(p2a, paid, prevouts=[p2wsh]), "datacarrier")
+        self.assertEqual(tx_reject_reason(_sweep(b"abcde", [[]]), paid, prevouts=[ANCHOR_SCRIPT]), "datacarrier")
+        self.assertEqual(whitelist_items(p2a, paid, prevouts=[ANCHOR_SCRIPT]), 1)
+        bare = {"datacarrier": True, "permitbaredatacarrier": False, "whitelist_p2a_sweep": True}
+        self.assertIsNone(tx_reject_reason(p2a, bare, prevouts=[ANCHOR_SCRIPT]))
+        self.assertEqual(tx_reject_reason(p2a, {"datacarrier": True, "permitbaredatacarrier": False}, prevouts=[ANCHOR_SCRIPT]), "baredatacarrier")
+        parent = _one_parent([b"\x00\x14" + b"\x22" * 20, ANCHOR_SCRIPT])
+        spent = bytes.fromhex("33" * 32)
+        looking = _sweep(b"ab", [[]], prev=(spent, 1))
+        found = prevout_scripts(looking, lambda txid: parent.hex() if txid == spent[::-1].hex() else None)
+        self.assertEqual(found, [ANCHOR_SCRIPT])
 
     def test_delta_must_be_negative(self):
         self.assertLess(sidecar.DEFAULT_DELTA, -(50 * 100_000_000))

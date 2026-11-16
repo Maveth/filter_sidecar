@@ -51,6 +51,8 @@ LIVE_RULE = {
     "bare-inscription": "rejectbareinscription",
     "many-sigs": "rejectmanysigs",
     "dust-sweep": "whitelist_dust_sweep",
+    "lightning-anchor-sweep": "whitelist_lightning_anchor_sweep",
+    "p2a-sweep": "whitelist_p2a_sweep",
     "package-paid": "whitelist_package_paid",
     "empty-runestone": "whitelist_empty_runestone",
     "commitment-32": "whitelist_commitment_32",
@@ -64,8 +66,8 @@ EXEMPTS = {
     "dust-spray": ("ark-exit", "consolidation"),
     "min-fee": ("ark-exit", "package-paid"),
     "runestone": ("empty-runestone",),
-    "opreturn-text": ("commitment-32", "empty-opreturn", "dust-sweep"),
-    "opreturn-data": ("commitment-32", "empty-opreturn", "dust-sweep"),
+    "opreturn-text": ("commitment-32", "empty-opreturn", "dust-sweep", "lightning-anchor-sweep", "p2a-sweep"),
+    "opreturn-data": ("commitment-32", "empty-opreturn", "dust-sweep", "lightning-anchor-sweep", "p2a-sweep"),
     "opreturn-stack": ("commitment-32", "empty-opreturn"),
 }
 
@@ -178,6 +180,12 @@ SLIDERS = {
     ),
     "dust-sweep": (
         {"key": "dustsweep_payload_max", "label": "OP_RETURN bytes at most", "min": 0, "max": 80, "step": 1, "default": 4},
+    ),
+    "lightning-anchor-sweep": (
+        {"key": "lightning_sweep_payload_max", "label": "OP_RETURN bytes at most", "min": 0, "max": 80, "step": 1, "default": 3},
+    ),
+    "p2a-sweep": (
+        {"key": "p2a_sweep_payload_max", "label": "OP_RETURN bytes at most", "min": 0, "max": 80, "step": 1, "default": 4},
     ),
     "package-paid": (
         {"key": "package_paid_sat_vb", "label": "Package at least", "min": 1, "max": 10, "step": 1, "default": 1},
@@ -636,6 +644,24 @@ def _mempool(log_path: Path) -> tuple[dict, dict]:
     return verbose, raws
 
 
+def _spent_scripts(log_path: Path, raw: bytes, cache: dict, node_box: dict) -> list[bytes] | None:
+    """Parent output scripts for a one-output OP_RETURN. Other transactions are not looked up."""
+    from spamcore import prevout_scripts, single_opreturn
+    if not single_opreturn(raw):
+        return None
+    if node_box.get("node") is None:
+        import sidecar
+        node_box["node"] = sidecar.Node(_config_for_log(log_path))
+
+    def fetch(txid: str) -> str | None:
+        if txid not in cache:
+            got = node_box["node"].call("getrawtransaction", [txid])
+            cache[txid] = got if isinstance(got, str) else None
+        return cache[txid]
+
+    return prevout_scripts(raw, fetch)
+
+
 def preview_mempool(log_path: Path, rules: dict, shape_id: str, sat_vb: float | None, proposal: dict | None = None) -> dict:
     """Transactions this check would block, or a whitelist would put back. Nothing is marked."""
     shape_id = slug_of(shape_id)
@@ -644,6 +670,9 @@ def preview_mempool(log_path: Path, rules: dict, shape_id: str, sat_vb: float | 
     flags, reason = preview_flags(rules, shape_id, sat_vb, proposal)
     from spamcore import package_from_entry, tx_is_ark_whitelist, tx_reject_reason
     entries, raws = _mempool(log_path)
+    parents: dict[str, str | None] = {}
+    node_box: dict = {}
+    need_parents = flags.get("whitelist_lightning_anchor_sweep") is True or flags.get("whitelist_p2a_sweep") is True
     hits = []
     for txid, entry in entries.items():
         raw_hex = raws.get(txid)
@@ -660,11 +689,13 @@ def preview_mempool(log_path: Path, rules: dict, shape_id: str, sat_vb: float | 
         if tx_is_ark_whitelist(raw, flags, fee_sat):
             continue
         package_fee, package_vsize = package_from_entry(entry)
+        prevouts = _spent_scripts(log_path, raw, parents, node_box) if need_parents else None
         got = tx_reject_reason(
             raw, flags, fee=fee_sat,
             weight=int(weight) if isinstance(weight, int) else None,
             sigops=int(sigops) if isinstance(sigops, int) else None,
             package_fee_sat=package_fee, package_vsize=package_vsize,
+            prevouts=prevouts,
         )
         if got == reason:
             hits.append(txid)
@@ -779,6 +810,9 @@ def _bring_back(log_path: Path, rules: dict, shape_id: str, proposal: dict | Non
         on["minfeerate_sat_vb"] = on["package_paid_sat_vb"]
     from spamcore import package_from_entry
     entries, raws = _mempool(log_path)
+    parents: dict[str, str | None] = {}
+    node_box: dict = {}
+    need_parents = shape_id in ("lightning-anchor-sweep", "p2a-sweep") or on.get("whitelist_lightning_anchor_sweep") is True or on.get("whitelist_p2a_sweep") is True
     only = []
     also = []
     cleared_names = []
@@ -801,6 +835,7 @@ def _bring_back(log_path: Path, rules: dict, shape_id: str, proposal: dict | Non
             "sigops": int(sigops) if isinstance(sigops, int) else None,
             "package_fee_sat": package_fee,
             "package_vsize": package_vsize,
+            "prevouts": _spent_scripts(log_path, raw, parents, node_box) if need_parents else None,
         }
         before = _all_reasons(raw, off, **kwargs)
         after = _all_reasons(raw, on, **kwargs)

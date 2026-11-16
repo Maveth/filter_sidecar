@@ -18,6 +18,8 @@ CHECKERS = frozenset({
     "empty-runestone",
     "empty-opreturn",
     "dust-sweep",
+    "lightning-anchor-sweep",
+    "p2a-sweep",
     "consolidation",
     "cat21",
     "runestone",
@@ -311,6 +313,8 @@ def _datacarrier_bytes(script: bytes, fullcount: bool) -> int:
 CONSENSUS_MAX_BLOCK_WEIGHT = 4_000_000
 CONSENSUS_MAX_BLOCK_SIGOPS = 80_000
 ANCHOR_SCRIPT = bytes.fromhex("51024e73")
+# BOLT 3 to_local_anchor / to_remote_anchor, after the 33-byte compressed key.
+LIGHTNING_ANCHOR_TAIL = bytes.fromhex("ac736460b268")
 
 
 def _opreturn_payload(script: bytes) -> bytes | None:
@@ -358,6 +362,141 @@ def _named_opreturn(script: bytes, flags: dict) -> str | None:
 
 def _bare_inscription(script: bytes) -> bool:
     return b"ord" in script and script.endswith(b"\x6d") and b"\x00\x63" not in script
+
+
+def _lightning_anchor_script(script: bytes) -> bool:
+    """BOLT 3 anchor witness script: a compressed key, then CHECKSIG IFDUP NOTIF 16 CSV ENDIF."""
+    return (
+        len(script) == 40
+        and script[0] == 0x21
+        and script[1] in (2, 3)
+        and script[34:] == LIGHTNING_ANCHOR_TAIL
+    )
+
+
+def _p2wsh(script: bytes) -> bytes:
+    return b"\x00\x20" + hashlib.sha256(script).digest()
+
+
+def _tx_parts(raw: bytes) -> tuple[int, list[tuple[int, bytes]], list[list[bytes]]] | None:
+    """Input count, outputs, and one witness stack per input. None when the tx cannot be read."""
+    if not raw or len(raw) < 10:
+        return None
+    try:
+        off = 4
+        segwit = off + 2 <= len(raw) and raw[off] == 0x00 and raw[off + 1] == 0x01
+        if segwit:
+            off += 2
+        vin, off = _read_varint(raw, off)
+        for _ in range(vin):
+            off += 36
+            slen, off = _read_varint(raw, off)
+            off += slen + 4
+        vout, off = _read_varint(raw, off)
+        outputs = []
+        for _ in range(vout):
+            value = int.from_bytes(raw[off:off + 8], "little")
+            off += 8
+            slen, off = _read_varint(raw, off)
+            outputs.append((value, raw[off:off + slen]))
+            off += slen
+        witnesses: list[list[bytes]] = []
+        if segwit:
+            for _ in range(vin):
+                count, off = _read_varint(raw, off)
+                items = []
+                for _item in range(count):
+                    item_len, off = _read_varint(raw, off)
+                    items.append(raw[off:off + item_len])
+                    off += item_len
+                witnesses.append(items)
+        return vin, outputs, witnesses
+    except (ValueError, IndexError):
+        return None
+
+
+def _output_scripts(raw: bytes) -> list[bytes] | None:
+    parts = _tx_parts(raw)
+    if parts is None:
+        return None
+    return [script for _value, script in parts[1]]
+
+
+def single_opreturn(raw: bytes) -> bool:
+    """True when the transaction has one output and that output is an OP_RETURN."""
+    parts = _tx_parts(raw)
+    if parts is None or len(parts[1]) != 1:
+        return False
+    return parts[1][0][1][:1] == b"\x6a"
+
+
+def prevout_scripts(raw: bytes, fetch) -> list[bytes] | None:
+    """Script of each input's parent output. fetch(txid) returns that parent as hex, or None."""
+    points = tx_input_outpoints(raw)
+    if not points:
+        return None
+    found = []
+    cached: dict[str, list[bytes] | None] = {}
+    for prev, vout in points:
+        txid = prev[::-1].hex()
+        if txid not in cached:
+            parent = fetch(txid)
+            if not isinstance(parent, str) or not parent:
+                return None
+            try:
+                cached[txid] = _output_scripts(bytes.fromhex(parent))
+            except ValueError:
+                return None
+        scripts = cached[txid]
+        if scripts is None or vout < 0 or vout >= len(scripts):
+            return None
+        found.append(scripts[vout])
+    return found
+
+
+def _only_opreturn(outputs: list[tuple[int, bytes]], cap: int) -> bool:
+    if len(outputs) != 1:
+        return False
+    payload = _opreturn_payload(outputs[0][1])
+    return payload is not None and len(payload) <= cap
+
+
+def _is_lightning_anchor_sweep(
+    raw: bytes, outputs: list[tuple[int, bytes]], prevouts: list[bytes] | None, flags: dict,
+) -> bool:
+    """A sweep whose inputs spend BOLT 3 anchors and whose only output is a short OP_RETURN."""
+    if flags.get("whitelist_lightning_anchor_sweep") is not True or not prevouts:
+        return False
+    cap = flags.get("lightning_sweep_payload_max")
+    if not isinstance(cap, int) or cap < 0:
+        cap = 3
+    if not _only_opreturn(outputs, cap):
+        return False
+    parts = _tx_parts(raw)
+    if parts is None or parts[0] < 1 or len(prevouts) != parts[0] or len(parts[2]) != parts[0]:
+        return False
+    for items, prevout in zip(parts[2], prevouts):
+        script = _witness_script(items)
+        if script is None or not _lightning_anchor_script(script) or prevout != _p2wsh(script):
+            return False
+    return True
+
+
+def _is_p2a_sweep(
+    raw: bytes, outputs: list[tuple[int, bytes]], prevouts: list[bytes] | None, flags: dict,
+) -> bool:
+    """A sweep whose inputs spend pay-to-anchor outputs and whose only output is a short OP_RETURN."""
+    if flags.get("whitelist_p2a_sweep") is not True or not prevouts:
+        return False
+    cap = flags.get("p2a_sweep_payload_max")
+    if not isinstance(cap, int) or cap < 0:
+        cap = 4
+    if not _only_opreturn(outputs, cap):
+        return False
+    parts = _tx_parts(raw)
+    if parts is None or parts[0] < 1 or len(prevouts) != parts[0] or len(parts[2]) != parts[0]:
+        return False
+    return all(not items and prevout == ANCHOR_SCRIPT for items, prevout in zip(parts[2], prevouts))
 
 
 def _is_dust_sweep(outputs: list[tuple[int, bytes]], flags: dict) -> bool:
@@ -495,6 +634,7 @@ def whitelist_items(
     raw: bytes, flags: dict, fee: int | None = None, weight: int | None = None,
     sigops: int | None = None, package_fee_sat: int | None = None,
     package_vsize: int | None = None, descendant_count: int = 0,
+    prevouts: list[bytes] | None = None,
 ) -> int:
     """1 for a single whitelist transaction, 2 when its child is in the mempool."""
     if tx_is_ark_whitelist(raw, flags, fee):
@@ -509,11 +649,11 @@ def whitelist_items(
         return 0
     before = tx_reject_reason(
         raw, quiet, fee=fee, weight=weight, sigops=sigops,
-        package_fee_sat=package_fee_sat, package_vsize=package_vsize,
+        package_fee_sat=package_fee_sat, package_vsize=package_vsize, prevouts=prevouts,
     )
     after = tx_reject_reason(
         raw, flags, fee=fee, weight=weight, sigops=sigops,
-        package_fee_sat=package_fee_sat, package_vsize=package_vsize,
+        package_fee_sat=package_fee_sat, package_vsize=package_vsize, prevouts=prevouts,
     )
     if before and before != after:
         return 1
@@ -523,6 +663,7 @@ def whitelist_items(
 def tx_reject_reason(
     raw: bytes, flags: dict, fee: int | None = None, weight: int | None = None,
     sigops: int | None = None, package_fee_sat: int | None = None, package_vsize: int | None = None,
+    prevouts: list[bytes] | None = None,
 ) -> Optional[str]:
     """Return a short reason to drop this tx, or None to keep it."""
     if not raw or len(raw) < 10:
@@ -570,7 +711,8 @@ def tx_reject_reason(
                 reason = _named_opreturn(script, flags)
             if reason is None and flags.get("rejectbareinscription") and _bare_inscription(script):
                 reason = "bareinscription"
-            if reason in ("datacarrier", "datacarriersize", "opreturntext", "opreturndata") and _is_dust_sweep(outputs, flags):
+            kept = _is_dust_sweep(outputs, flags) or _is_lightning_anchor_sweep(raw, outputs, prevouts, flags) or _is_p2a_sweep(raw, outputs, prevouts, flags)
+            if reason in ("datacarrier", "datacarriersize", "opreturntext", "opreturndata") and kept:
                 reason = None
             if reason and not _output_whitelisted(script, reason, flags):
                 return reason
@@ -635,7 +777,8 @@ def tx_reject_reason(
             if legacy > legacy_limit:
                 return "legacysigops"
         if flags.get("permitbaredatacarrier") is False and outputs and all(script[:1] == b"\x6a" for _value, script in outputs):
-            return "baredatacarrier"
+            if not (_is_lightning_anchor_sweep(raw, outputs, prevouts, flags) or _is_p2a_sweep(raw, outputs, prevouts, flags)):
+                return "baredatacarrier"
         if flags.get("permitbareanchor") is False and outputs and all(script == ANCHOR_SCRIPT for _value, script in outputs):
             return "bareanchor"
         per_sigop = flags.get("bytespersigop")

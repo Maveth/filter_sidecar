@@ -5,11 +5,13 @@
   "title": "Lightning anchor sweep",
   "from": "cesspool",
   "schema": {
-    "spends": "lightning anchor outputs",
+    "spends": "BOLT 3 anchor outputs",
+    "witness_script": "33-byte compressed key, CHECKSIG IFDUP NOTIF 16 CSV ENDIF",
+    "parent_script": "P2WSH of that witness script",
     "only_output": "opreturn",
     "opreturn_payload_bytes_max": 3
   },
-  "note": "Padding so a one-input sweep reaches the 65-byte minimum. Knots refuses a transaction whose only output is an OP_RETURN, so this stays off the public port. It is not an insert package.",
+  "note": "The spending witness reveals the anchor script. The parent output must be the pay-to-witness-script-hash of that script. Not an insert package.",
   "slug": "lightning-anchor-sweep",
-  "checker": null
+  "checker": "lightning-anchor-sweep"
 }
