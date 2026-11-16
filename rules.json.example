@@ -56,6 +56,7 @@
   "lightning_sweep_payload_max": 3,
   "whitelist_p2a_sweep": false,
   "p2a_sweep_payload_max": 4,
+  "whitelist_powpeg": false,
   "whitelist_dust_sweep": false,
   "dustsweep_payload_max": 4,
   "whitelist_package_paid": false,

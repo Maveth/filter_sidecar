@@ -31,10 +31,25 @@ def _p2wsh_run(count: int, value: int) -> bytes:
     return raw + b"\x00\x00\x00\x00"
 
 
-def _sweep(payload: bytes, witnesses: list[list[bytes]], prev: tuple[bytes, int] | None = None) -> bytes:
+def _item(data: bytes) -> bytes:
+    size = len(data)
+    if size < 0xFD:
+        return bytes([size]) + data
+    return b"\xfd" + size.to_bytes(2, "little") + data
+
+
+def _witness_script_tx(script: bytes, output: bytes) -> bytes:
+    raw = b"\x02\x00\x00\x00\x00\x01\x01"
+    raw += b"\x11" * 32 + b"\x00\x00\x00\x00" + b"\x00" + b"\xff\xff\xff\xff"
+    raw += b"\x01" + (1000).to_bytes(8, "little") + _item(output)
+    raw += b"\x01" + _item(script)
+    return raw + b"\x00\x00\x00\x00"
+
+
+def _sweep(payload: bytes, witnesses: list[list[bytes]], prev: tuple[bytes, int] | None = None, scriptsig: bytes = b"") -> bytes:
     prev_hash, vout = prev or (b"\x11" * 32, 0)
     raw = b"\x02\x00\x00\x00\x00\x01\x01"
-    raw += prev_hash + vout.to_bytes(4, "little") + b"\x00" + b"\xff\xff\xff\xff"
+    raw += prev_hash + vout.to_bytes(4, "little") + _item(scriptsig) + b"\xff\xff\xff\xff"
     script = b"\x6a" + bytes([len(payload)]) + payload
     raw += b"\x01" + (0).to_bytes(8, "little") + bytes([len(script)]) + script
     for items in witnesses:
@@ -221,6 +236,41 @@ class RulesTest(unittest.TestCase):
         looking = _sweep(b"ab", [[]], prev=(spent, 1))
         found = prevout_scripts(looking, lambda txid: parent.hex() if txid == spent[::-1].hex() else None)
         self.assertEqual(found, [ANCHOR_SCRIPT])
+        redeem = p2wsh
+        script_sig = bytes([len(redeem)]) + redeem
+        nested = hashlib.new("ripemd160", hashlib.sha256(redeem).digest()).digest()
+        p2sh = b"\xa9\x14" + nested + b"\x87"
+        wrapped = _sweep(b"abc", [[signature, witness]], scriptsig=script_sig)
+        self.assertIsNone(tx_reject_reason(wrapped, on, prevouts=[p2sh]))
+        self.assertEqual(tx_reject_reason(wrapped, on, prevouts=[b"\x00"]), "datacarrier")
+        control = b"\xc0" + b"\x22" * 32
+        p2tr = b"\x51\x20" + b"\x33" * 32
+        leaf = _sweep(b"ab", [[b"\x51", control]])
+        self.assertIsNone(tx_reject_reason(leaf, paid, prevouts=[p2tr]))
+        self.assertEqual(tx_reject_reason(leaf, paid, prevouts=[ANCHOR_SCRIPT]), "datacarrier")
+        delay = _sweep(b"ab", [[b"\x60\xb2", control]])
+        self.assertIsNone(tx_reject_reason(delay, paid, prevouts=[p2tr]))
+        cltv = _sweep(b"ab", [[b"\x60\xb1", control]])
+        self.assertIsNone(tx_reject_reason(cltv, paid, prevouts=[p2tr]))
+        signed = _sweep(b"ab", [[b"\x11" * 64, b"\x60\xb2", control]])
+        self.assertEqual(tx_reject_reason(signed, paid, prevouts=[p2tr]), "datacarrier")
+
+    def test_powpeg_clears_only_the_fake_multisig_mark(self):
+        def multisig(count: int) -> bytes:
+            body = bytes([0x51])
+            for n in range(count):
+                body += b"\x21" + bytes([2]) + bytes([n + 1]) * 32
+            return body + bytes([0x50 + count, 0xAE])
+
+        peg = b"\x64" + multisig(11) + b"\x67\x60\xb2\x75" + multisig(2) + b"\x68"
+        prefixed = b"\x20" + b"\xab" * 32 + b"\x75" + peg
+        pay = b"\x00\x14" + b"\x22" * 20
+        bare = multisig(11)
+        on = {"rejectfakemultisig": True, "whitelist_powpeg": True, "datacarrier": True}
+        self.assertIsNone(tx_reject_reason(_witness_script_tx(peg, pay), on))
+        self.assertIsNone(tx_reject_reason(_witness_script_tx(prefixed, pay), on))
+        self.assertEqual(tx_reject_reason(_witness_script_tx(peg, pay), {"rejectfakemultisig": True}), "fakemultisig")
+        self.assertEqual(tx_reject_reason(_witness_script_tx(bare, pay), on), "fakemultisig")
 
     def test_a_low_fee_parent_with_a_paying_child_is_package_paid(self):
         self.assertTrue(spamcore.paid_by_descendant({}, 17, 155, 500, 200))

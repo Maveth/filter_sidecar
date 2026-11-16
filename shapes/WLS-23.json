@@ -1,0 +1,15 @@
+{
+  "id": "WLS-23",
+  "kind": "whitelist",
+  "carry": "definition",
+  "title": "Legacy P2SH multisig",
+  "from": "Knots #481",
+  "schema": {
+    "script": "m <key>... n CHECKMULTISIG",
+    "keys": "33 or 65 bytes, and only in P2SH",
+    "knots_name": "legacy-multisig"
+  },
+  "note": "A bare legacy multisig in a P2SH redeem script. A 65-byte key in P2WSH is not a key under this policy, because segwit will not let an uncompressed key sign, so that script is not this row. This row is a name. The check is not written. Not an insert package.",
+  "slug": "legacy-p2sh-multisig",
+  "checker": null
+}

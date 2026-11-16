@@ -3,14 +3,15 @@
   "kind": "whitelist",
   "carry": "definition",
   "title": "Rootstock PowPeg flyover",
-  "from": "cesspool",
+  "from": "cesspool; Knots #481",
   "schema": {
-    "witness": "the PowPeg script this chain has revealed since the fork",
-    "keys": 13,
-    "threshold_seen": "5 of 9",
-    "prefix": "32 bytes dropped unused"
+    "witness": "OP_NOTIF, a multisig of 33-byte keys, ELSE, a number, CHECKSEQUENCEVERIFY, DROP, a second multisig, ENDIF",
+    "keys": "33 bytes each. A 65-byte key is not this row",
+    "prefix": "an optional 32-byte push and DROP, the flyover prefix",
+    "seen": "13 keys, and a 5 of 9",
+    "clears": "fake-multisig only"
   },
-  "note": "Any other script stays spam. The script is not checked against an address Rootstock publishes.",
+  "note": "Knots #481 names this powpeg. The script is not checked against an address Rootstock publishes. This row clears only the fake-multisig mark. It does not copy the field budget. It stays off until turned on. Any other script stays spam.",
   "slug": "powpeg-flyover",
-  "checker": null
+  "checker": "powpeg-flyover"
 }

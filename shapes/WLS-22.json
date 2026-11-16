@@ -1,0 +1,14 @@
+{
+  "id": "WLS-22",
+  "kind": "whitelist",
+  "carry": "definition",
+  "title": "Liquid federation",
+  "from": "Knots #481",
+  "schema": {
+    "script": "m-of-n CHECKMULTISIG IFDUP NOTIF <t> CSV VERIFY m2-of-n2 CHECKMULTISIG ENDIF",
+    "knots_name": "liquid-federation"
+  },
+  "note": "The Liquid federation layout. The emergency path is a second multisig after a CSV. Knots #481 would not charge the federation keys on the signed path. This row does not copy that exemption. This row is a name. The check is not written. Not an insert package.",
+  "slug": "liquid-federation",
+  "checker": null
+}

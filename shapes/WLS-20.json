@@ -1,0 +1,15 @@
+{
+  "id": "WLS-20",
+  "kind": "whitelist",
+  "carry": "definition",
+  "title": "Selector federation",
+  "from": "Knots #481",
+  "schema": {
+    "script": "<selector> EQUALVERIFY IF key CHECKSIG ELSE 3 of 5 CHECKMULTISIG ENDIF",
+    "kind": "P2WSH",
+    "knots_name": "selector-federation"
+  },
+  "note": "A selector push chooses one key or a 3-of-5. This row is a name. The check is not written. Not an insert package.",
+  "slug": "selector-federation",
+  "checker": null
+}

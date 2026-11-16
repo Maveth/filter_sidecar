@@ -1,0 +1,24 @@
+{
+  "id": "WLS-18",
+  "kind": "whitelist",
+  "carry": "definition",
+  "title": "Other swap scripts",
+  "from": "Knots #481",
+  "schema": {
+    "knots_names": [
+      "swap-sha256-pkh",
+      "swap-sha256-pkh-2",
+      "swap-sha256-pkh-csv",
+      "swap-sha256-pkh-nosize",
+      "swap-sha256-pkh-nosize-csv",
+      "swap-hash-or-csv",
+      "swap-notif",
+      "htlc-hash160-csv",
+      "htlc-hash160-cltv",
+      "htlc-sha256-cltv"
+    ]
+  },
+  "note": "The other swap scripts Knots #481 lists beside Boltz: a SHA256 preimage with pubkey hashes on both paths, a two-party hash-or-CSV, its NOTIF sibling, and an HTLC whose hash or timelock shares one CHECKSIG. Boltz itself is WLS-17. This row is a name. The check is not written. Not an insert package.",
+  "slug": "other-swap",
+  "checker": null
+}

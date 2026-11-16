@@ -3,7 +3,7 @@
   "kind": "whitelist",
   "carry": "package",
   "title": "Ark exit",
-  "from": "ours",
+  "from": "ours; Knots #481",
   "schema": {
     "parent": {
       "version": 3,
@@ -34,7 +34,7 @@
       "method": "sendrawtransaction"
     }
   },
-  "note": "The package is what moves between sidecars. Enabling it inserts the pair here and leaves it unmarked. It does not go out on the Bitcoin port. The child is part of the package and is not itself a whitelist shape.",
+  "note": "The package is what moves between sidecars. Enabling it inserts the pair here and leaves it unmarked. It does not go out on the Bitcoin port. The child is part of the package and is not itself a whitelist shape. Knots #481 treats the leaf inside an Ark hop as miniscript behind a timelock or one hash check. That class is WLS-12. This checker stays the version-3 parent with fee 0 and one zero-value anchor. The same leaf class includes JoinMarket and Boltz, so those are not inserted as this package.",
   "slug": "ark-exit",
   "checker": "ark-exit"
 }

@@ -6,7 +6,7 @@
       "kind": "whitelist",
       "carry": "package",
       "title": "Ark exit",
-      "from": "ours",
+      "from": "ours; Knots #481",
       "schema": {
         "parent": {
           "version": 3,
@@ -37,7 +37,7 @@
           "method": "sendrawtransaction"
         }
       },
-      "note": "The package is what moves between sidecars. Enabling it inserts the pair here and leaves it unmarked. It does not go out on the Bitcoin port. The child is part of the package and is not itself a whitelist shape.",
+      "note": "The package is what moves between sidecars. Enabling it inserts the pair here and leaves it unmarked. It does not go out on the Bitcoin port. The child is part of the package and is not itself a whitelist shape. Knots #481 treats the leaf inside an Ark hop as miniscript behind a timelock or one hash check. That class is WLS-12. This checker stays the version-3 parent with fee 0 and one zero-value anchor. The same leaf class includes JoinMarket and Boltz, so those are not inserted as this package.",
       "slug": "ark-exit",
       "checker": "ark-exit"
     },
@@ -93,15 +93,16 @@
       "kind": "whitelist",
       "carry": "definition",
       "title": "Lightning anchor sweep",
-      "from": "cesspool",
+      "from": "cesspool; Knots #481",
       "schema": {
         "spends": "BOLT 3 anchor outputs",
         "witness_script": "33-byte compressed key, CHECKSIG IFDUP NOTIF 16 CSV ENDIF",
-        "parent_script": "P2WSH of that witness script",
+        "parent_script": "P2WSH of that witness script, or P2SH of that program",
+        "knots_name": "ln-anchor",
         "only_output": "opreturn",
         "opreturn_payload_bytes_max": 3
       },
-      "note": "The spending witness reveals the anchor script. The parent output must be the pay-to-witness-script-hash of that script. Not an insert package.",
+      "note": "The spending witness reveals the BOLT 3 anchor. The parent is the pay-to-witness-script-hash of that script, or P2SH of that same program. Knots #481 names this ln-anchor. Offered and received HTLCs are WLS-14, and to_local is WLS-13. Not an insert package.",
       "slug": "lightning-anchor-sweep",
       "checker": "lightning-anchor-sweep"
     },
@@ -110,15 +111,22 @@
       "kind": "whitelist",
       "carry": "definition",
       "title": "Pay-to-anchor sweep",
-      "from": "cesspool",
+      "from": "cesspool; Knots #481",
       "schema": {
-        "spends": "pay-to-anchor outputs",
-        "parent_script_hex": "51024e73",
-        "witness": "empty",
+        "spends": [
+          "pay-to-anchor output 51024e73 with an empty witness",
+          "taproot leaf that is only OP_TRUE, empty stack",
+          "taproot leaf that is only a small number and CSV or CLTV, empty stack"
+        ],
+        "parent_script_hex": "51024e73 or a 34-byte taproot output",
+        "knots_names": [
+          "anchor-true",
+          "anyone-after-timelock"
+        ],
         "only_output": "opreturn",
         "opreturn_payload_bytes_max": 4
       },
-      "note": "The pay-to-anchor script is on the parent output, not in this transaction. Not the Ark exit, and not an insert package.",
+      "note": "Three spends, one row. The output script 51024e73 with an empty witness. A taproot leaf that is only OP_TRUE. A taproot leaf that is only a small number and CHECKSEQUENCEVERIFY or CHECKLOCKTIMEVERIFY, which is the LND anchor. A leaf's stack is empty: the witness is the script and its control block. Knots #481 names the leaves anchor-true and anyone-after-timelock. Not the Ark exit, and not an insert package.",
       "slug": "p2a-sweep",
       "checker": "p2a-sweep"
     },
@@ -141,16 +149,17 @@
       "kind": "whitelist",
       "carry": "definition",
       "title": "Rootstock PowPeg flyover",
-      "from": "cesspool",
+      "from": "cesspool; Knots #481",
       "schema": {
-        "witness": "the PowPeg script this chain has revealed since the fork",
-        "keys": 13,
-        "threshold_seen": "5 of 9",
-        "prefix": "32 bytes dropped unused"
+        "witness": "OP_NOTIF, a multisig of 33-byte keys, ELSE, a number, CHECKSEQUENCEVERIFY, DROP, a second multisig, ENDIF",
+        "keys": "33 bytes each. A 65-byte key is not this row",
+        "prefix": "an optional 32-byte push and DROP, the flyover prefix",
+        "seen": "13 keys, and a 5 of 9",
+        "clears": "fake-multisig only"
       },
-      "note": "Any other script stays spam. The script is not checked against an address Rootstock publishes.",
+      "note": "Knots #481 names this powpeg. The script is not checked against an address Rootstock publishes. This row clears only the fake-multisig mark. It does not copy the field budget. It stays off until turned on. Any other script stays spam.",
       "slug": "powpeg-flyover",
-      "checker": null
+      "checker": "powpeg-flyover"
     },
     {
       "id": "WLS-10",
@@ -165,6 +174,284 @@
       "note": "Shrinks the coin set. Leave it unmarked. It is not a package and it does not get a fee credit yet.",
       "slug": "consolidation",
       "checker": "consolidation"
+    },
+    {
+      "id": "WLS-11",
+      "kind": "whitelist",
+      "carry": "definition",
+      "title": "Sane miniscript",
+      "from": "Knots #481",
+      "schema": {
+        "script": "a revealed P2SH, P2WSH, or tapscript that parses as miniscript and is sane",
+        "keys": "opaque bytes",
+        "not_required": [
+          "no duplicate keys",
+          "no mixed timelocks"
+        ]
+      },
+      "note": "Knots #481 would relay this and then count unproven keys and hashes past an allowance. An IF/ELSE of two known shapes is the same class, not its own row. This row is a name. The check is not written, and the field budget is not copied. Not an insert package.",
+      "slug": "sane-miniscript",
+      "checker": null
+    },
+    {
+      "id": "WLS-12",
+      "kind": "whitelist",
+      "carry": "definition",
+      "title": "Miniscript behind a timelock or one hash check",
+      "from": "Knots #481",
+      "schema": {
+        "around": "sane miniscript, or a lone OP_TRUE",
+        "leading_or_trailing": [
+          "<n> CSV DROP",
+          "<n> CLTV DROP",
+          "one hash check"
+        ],
+        "also": "a lone uncompressed key behind those checks, in P2SH only",
+        "seen_in": [
+          "Ark hop leaves",
+          "JoinMarket",
+          "Boltz claims",
+          "Core DAO",
+          "batch consolidations"
+        ]
+      },
+      "note": "Knots #481 names the forms miniscript-timelock, miniscript-hash, miniscript-timelock-hash, and anyone-after-checks. The leaf inside an Ark hop is this class. WLS-1 does not use it: the same shape is also JoinMarket and Boltz, and those must not be inserted as an Ark package. This row is a name. The check is not written. Not an insert package.",
+      "slug": "miniscript-behind-check",
+      "checker": null
+    },
+    {
+      "id": "WLS-13",
+      "kind": "whitelist",
+      "carry": "definition",
+      "title": "BOLT 3 to_local",
+      "from": "Knots #481",
+      "schema": {
+        "script": "IF key ELSE <n> CSV DROP key ENDIF CHECKSIG",
+        "kind": "P2WSH, and the same bytes in P2SH",
+        "knots_name": "ln-to-local"
+      },
+      "note": "The second-stage output of a BOLT 3 local commitment. The anchor sweep is WLS-6. This row is a name. The check is not written. Not an insert package.",
+      "slug": "bolt3-to-local",
+      "checker": null
+    },
+    {
+      "id": "WLS-14",
+      "kind": "whitelist",
+      "carry": "definition",
+      "title": "BOLT 3 HTLC",
+      "from": "Knots #481",
+      "schema": {
+        "forms": [
+          "offered HTLC",
+          "offered HTLC with anchors",
+          "received HTLC",
+          "received HTLC with anchors"
+        ],
+        "kind": "P2WSH, and the same bytes in P2SH",
+        "knots_names": [
+          "ln-htlc-offered",
+          "ln-htlc-offered-anchors",
+          "ln-htlc-received",
+          "ln-htlc-received-anchors"
+        ]
+      },
+      "note": "The four BOLT 3 HTLC scripts. The anchor output those channels also use is WLS-6, not this row. This row is a name. The check is not written. Not an insert package.",
+      "slug": "bolt3-htlc",
+      "checker": null
+    },
+    {
+      "id": "WLS-15",
+      "kind": "whitelist",
+      "carry": "definition",
+      "title": "LND revocation leaf",
+      "from": "Knots #481",
+      "schema": {
+        "script": "<local key> DROP <revocation key> CHECKSIG",
+        "kind": "tapscript",
+        "knots_name": "ln-taproot-revoke"
+      },
+      "note": "The revocation leaf of an LND simple-taproot channel. The local key is dropped. The revocation key signs. The anchor leaf of that channel is the bare timelock on WLS-7. This row is a name. The check is not written. Not an insert package.",
+      "slug": "lnd-revocation",
+      "checker": null
+    },
+    {
+      "id": "WLS-16",
+      "kind": "whitelist",
+      "carry": "definition",
+      "title": "Phoenix swap-in",
+      "from": "Knots #481",
+      "schema": {
+        "forms": [
+          "IF <n> CSV DROP ELSE key CHECKSIGVERIFY ENDIF key CHECKSIG",
+          "the same script with CLTV in place of CSV"
+        ],
+        "kind": "P2WSH",
+        "knots_names": [
+          "phoenix-swap-in",
+          "phoenix-swap-in-cltv"
+        ]
+      },
+      "note": "ACINQ Phoenix swap-in, version 1, in the CSV refund form and the CLTV refund form. This row is a name. The check is not written. Not an insert package.",
+      "slug": "phoenix-swap-in",
+      "checker": null
+    },
+    {
+      "id": "WLS-17",
+      "kind": "whitelist",
+      "carry": "definition",
+      "title": "Boltz submarine swap",
+      "from": "Knots #481",
+      "schema": {
+        "script": "SIZE 32 EQUAL IF HASH160 hash EQUALVERIFY key ELSE DROP <n> CLTV DROP key ENDIF CHECKSIG",
+        "kind": "P2WSH",
+        "knots_name": "boltz-swap"
+      },
+      "note": "The Boltz submarine swap. Other hash-or-timelock swaps are WLS-18. This row is a name. The check is not written. Not an insert package.",
+      "slug": "boltz-swap",
+      "checker": null
+    },
+    {
+      "id": "WLS-18",
+      "kind": "whitelist",
+      "carry": "definition",
+      "title": "Other swap scripts",
+      "from": "Knots #481",
+      "schema": {
+        "knots_names": [
+          "swap-sha256-pkh",
+          "swap-sha256-pkh-2",
+          "swap-sha256-pkh-csv",
+          "swap-sha256-pkh-nosize",
+          "swap-sha256-pkh-nosize-csv",
+          "swap-hash-or-csv",
+          "swap-notif",
+          "htlc-hash160-csv",
+          "htlc-hash160-cltv",
+          "htlc-sha256-cltv"
+        ]
+      },
+      "note": "The other swap scripts Knots #481 lists beside Boltz: a SHA256 preimage with pubkey hashes on both paths, a two-party hash-or-CSV, its NOTIF sibling, and an HTLC whose hash or timelock shares one CHECKSIG. Boltz itself is WLS-17. This row is a name. The check is not written. Not an insert package.",
+      "slug": "other-swap",
+      "checker": null
+    },
+    {
+      "id": "WLS-19",
+      "kind": "whitelist",
+      "carry": "definition",
+      "title": "Four-path VHTLC",
+      "from": "Knots #481",
+      "schema": {
+        "paths": [
+          "2 of 2",
+          "2 of 2",
+          "key and preimage after CSV",
+          "key after a longer CSV"
+        ],
+        "kind": "P2WSH",
+        "knots_name": "four-path-vhtlc"
+      },
+      "note": "Four nested paths: two immediate 2-of-2 spends, then a key plus a SHA256 preimage after a CSV, then a key after a longer CSV. This row is a name. The check is not written. Not an insert package.",
+      "slug": "four-path-vhtlc",
+      "checker": null
+    },
+    {
+      "id": "WLS-20",
+      "kind": "whitelist",
+      "carry": "definition",
+      "title": "Selector federation",
+      "from": "Knots #481",
+      "schema": {
+        "script": "<selector> EQUALVERIFY IF key CHECKSIG ELSE 3 of 5 CHECKMULTISIG ENDIF",
+        "kind": "P2WSH",
+        "knots_name": "selector-federation"
+      },
+      "note": "A selector push chooses one key or a 3-of-5. This row is a name. The check is not written. Not an insert package.",
+      "slug": "selector-federation",
+      "checker": null
+    },
+    {
+      "id": "WLS-21",
+      "kind": "whitelist",
+      "carry": "definition",
+      "title": "Custodial index switch",
+      "from": "Knots #481",
+      "schema": {
+        "script": "a chain of DUP <index> EQUAL IF DROP <branch> ELSE, then one final branch and the matching ENDIFs",
+        "branches": [
+          "two key hashes checked by a shared tail",
+          "the same hashes checked inline"
+        ],
+        "knots_name": "index-switch"
+      },
+      "note": "A witness item picks which pair of key hashes can spend. One script uses one branch form, not both. This row is a name. The check is not written. Not an insert package.",
+      "slug": "index-switch",
+      "checker": null
+    },
+    {
+      "id": "WLS-22",
+      "kind": "whitelist",
+      "carry": "definition",
+      "title": "Liquid federation",
+      "from": "Knots #481",
+      "schema": {
+        "script": "m-of-n CHECKMULTISIG IFDUP NOTIF <t> CSV VERIFY m2-of-n2 CHECKMULTISIG ENDIF",
+        "knots_name": "liquid-federation"
+      },
+      "note": "The Liquid federation layout. The emergency path is a second multisig after a CSV. Knots #481 would not charge the federation keys on the signed path. This row does not copy that exemption. This row is a name. The check is not written. Not an insert package.",
+      "slug": "liquid-federation",
+      "checker": null
+    },
+    {
+      "id": "WLS-23",
+      "kind": "whitelist",
+      "carry": "definition",
+      "title": "Legacy P2SH multisig",
+      "from": "Knots #481",
+      "schema": {
+        "script": "m <key>... n CHECKMULTISIG",
+        "keys": "33 or 65 bytes, and only in P2SH",
+        "knots_name": "legacy-multisig"
+      },
+      "note": "A bare legacy multisig in a P2SH redeem script. A 65-byte key in P2WSH is not a key under this policy, because segwit will not let an uncompressed key sign, so that script is not this row. This row is a name. The check is not written. Not an insert package.",
+      "slug": "legacy-p2sh-multisig",
+      "checker": null
+    },
+    {
+      "id": "WLS-24",
+      "kind": "whitelist",
+      "carry": "definition",
+      "title": "Tapscript threshold",
+      "from": "Knots #481",
+      "schema": {
+        "script": "(<key> CHECKSIGVERIFY)* <key> CHECKSIG (<key> CHECKSIGADD)+ then an optional k and GREATERTHANOREQUAL, NUMEQUAL, or EQUAL",
+        "kind": "tapscript",
+        "knots_name": "checksigadd-threshold"
+      },
+      "note": "A tapscript k-of-n written with CHECKSIGADD. The threshold compare may be GREATERTHANOREQUAL instead of NUMEQUAL. Without the compare, the signature count itself is the result. This row is a name. The check is not written. Not an insert package.",
+      "slug": "tapscript-threshold",
+      "checker": null
+    },
+    {
+      "id": "WLS-25",
+      "kind": "whitelist",
+      "carry": "definition",
+      "title": "Tagged key leaf",
+      "from": "Knots #481",
+      "schema": {
+        "forms": [
+          "key CHECKSIGVERIFY, then a short push",
+          "key CHECKSIGVERIFY, key CHECKSIGVERIFY, then a short push",
+          "key CHECKSIG IF <short push> ENDIF"
+        ],
+        "knots_names": [
+          "tagged-key",
+          "tagged-2of2",
+          "key-then-commitment"
+        ]
+      },
+      "note": "A key leaf that ends in a short tag or commitment. Knots #481 counts that push as data and still treats the leaf as known. This row does not copy that count. This row is a name. The check is not written. Not an insert package.",
+      "slug": "tagged-key",
+      "checker": null
     },
     {
       "id": "SFS-1",
@@ -234,7 +521,7 @@
         "unsigned_keys_min": 11,
         "per": "script"
       },
-      "note": "Plumb counts a key as signed only when a signature in the spend verifies against it. This catalog does not do that check yet. A 2-of-3 and an 11-of-15 federation spend are the cases that must stay out of this row.",
+      "note": "Plumb counts a key as signed only when a signature in the spend verifies against it. This catalog does not do that check yet. A 2-of-3 and an 11-of-15 federation spend are the cases that must stay out of this row. A key that sits beside CHECKSIG and still never verifies is SFS-32.",
       "slug": "fake-multisig",
       "checker": "fake-multisig"
     },
@@ -250,7 +537,7 @@
           "OP_1 OP_NOTIF"
         ]
       },
-      "note": "A branch decided by a signature or a witness item is not this row.",
+      "note": "A branch decided by a signature or a witness item is not this row. OP_DEPTH OP_0NOTEQUAL OP_NOTIF, and a CHECKSIG that runs and fails, are SFS-32.",
       "slug": "dead-branch",
       "checker": "dead-branch"
     },
@@ -610,6 +897,27 @@
       },
       "slug": "many-sigs",
       "checker": "many-sigs"
+    },
+    {
+      "id": "SFS-32",
+      "kind": "spam",
+      "carry": "definition",
+      "title": "Unverified key",
+      "from": "Knots #470",
+      "schema": {
+        "patterns": [
+          "OP_DEPTH OP_0NOTEQUAL OP_NOTIF around a key",
+          "<key> CHECKSIG DROP with an empty signature",
+          "a 32-byte tapscript key that never has to verify"
+        ],
+        "missed_by": [
+          "SFS-5",
+          "SFS-6"
+        ]
+      },
+      "note": "The hole in Knots #422. A pubkey is treated as real because CHECKSIG sits beside it, even when that check never succeeds: the opcode is in a branch guarded by OP_DEPTH, or it runs on an empty signature and the failure is dropped. Fourteen fake keys in a 1-of-15 then pass as ordinary multisig. SFS-5 counts 33-byte keys in a multisig and does not ask whether a signature verified. SFS-6 is a branch that constants make unreachable. This sidecar does not run the script, so this row is a name and the check is not written. Knots #470, by LionThunderFingers, recounts after the script runs and credits a key only when a signature verified against it.",
+      "slug": "unverified-key",
+      "checker": null
     },
     {
       "id": "WCH-1",

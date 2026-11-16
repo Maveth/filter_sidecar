@@ -1,0 +1,15 @@
+{
+  "id": "WLS-17",
+  "kind": "whitelist",
+  "carry": "definition",
+  "title": "Boltz submarine swap",
+  "from": "Knots #481",
+  "schema": {
+    "script": "SIZE 32 EQUAL IF HASH160 hash EQUALVERIFY key ELSE DROP <n> CLTV DROP key ENDIF CHECKSIG",
+    "kind": "P2WSH",
+    "knots_name": "boltz-swap"
+  },
+  "note": "The Boltz submarine swap. Other hash-or-timelock swaps are WLS-18. This row is a name. The check is not written. Not an insert package.",
+  "slug": "boltz-swap",
+  "checker": null
+}

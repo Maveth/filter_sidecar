@@ -10,7 +10,7 @@
       "OP_1 OP_NOTIF"
     ]
   },
-  "note": "A branch decided by a signature or a witness item is not this row.",
+  "note": "A branch decided by a signature or a witness item is not this row. OP_DEPTH OP_0NOTEQUAL OP_NOTIF, and a CHECKSIG that runs and fails, are SFS-32.",
   "slug": "dead-branch",
   "checker": "dead-branch"
 }

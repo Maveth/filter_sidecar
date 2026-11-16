@@ -1,0 +1,18 @@
+{
+  "id": "WLS-16",
+  "kind": "whitelist",
+  "carry": "definition",
+  "title": "Phoenix swap-in",
+  "from": "Knots #481",
+  "schema": {
+    "forms": [
+      "IF <n> CSV DROP ELSE key CHECKSIGVERIFY ENDIF key CHECKSIG",
+      "the same script with CLTV in place of CSV"
+    ],
+    "kind": "P2WSH",
+    "knots_names": ["phoenix-swap-in", "phoenix-swap-in-cltv"]
+  },
+  "note": "ACINQ Phoenix swap-in, version 1, in the CSV refund form and the CLTV refund form. This row is a name. The check is not written. Not an insert package.",
+  "slug": "phoenix-swap-in",
+  "checker": null
+}

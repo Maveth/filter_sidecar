@@ -3,15 +3,19 @@
   "kind": "whitelist",
   "carry": "definition",
   "title": "Pay-to-anchor sweep",
-  "from": "cesspool",
+  "from": "cesspool; Knots #481",
   "schema": {
-    "spends": "pay-to-anchor outputs",
-    "parent_script_hex": "51024e73",
-    "witness": "empty",
+    "spends": [
+      "pay-to-anchor output 51024e73 with an empty witness",
+      "taproot leaf that is only OP_TRUE, empty stack",
+      "taproot leaf that is only a small number and CSV or CLTV, empty stack"
+    ],
+    "parent_script_hex": "51024e73 or a 34-byte taproot output",
+    "knots_names": ["anchor-true", "anyone-after-timelock"],
     "only_output": "opreturn",
     "opreturn_payload_bytes_max": 4
   },
-  "note": "The pay-to-anchor script is on the parent output, not in this transaction. Not the Ark exit, and not an insert package.",
+  "note": "Three spends, one row. The output script 51024e73 with an empty witness. A taproot leaf that is only OP_TRUE. A taproot leaf that is only a small number and CHECKSEQUENCEVERIFY or CHECKLOCKTIMEVERIFY, which is the LND anchor. A leaf's stack is empty: the witness is the script and its control block. Knots #481 names the leaves anchor-true and anyone-after-timelock. Not the Ark exit, and not an insert package.",
   "slug": "p2a-sweep",
   "checker": "p2a-sweep"
 }

@@ -1,0 +1,18 @@
+{
+  "id": "SFS-32",
+  "kind": "spam",
+  "carry": "definition",
+  "title": "Unverified key",
+  "from": "Knots #470",
+  "schema": {
+    "patterns": [
+      "OP_DEPTH OP_0NOTEQUAL OP_NOTIF around a key",
+      "<key> CHECKSIG DROP with an empty signature",
+      "a 32-byte tapscript key that never has to verify"
+    ],
+    "missed_by": ["SFS-5", "SFS-6"]
+  },
+  "note": "The hole in Knots #422. A pubkey is treated as real because CHECKSIG sits beside it, even when that check never succeeds: the opcode is in a branch guarded by OP_DEPTH, or it runs on an empty signature and the failure is dropped. Fourteen fake keys in a 1-of-15 then pass as ordinary multisig. SFS-5 counts 33-byte keys in a multisig and does not ask whether a signature verified. SFS-6 is a branch that constants make unreachable. This sidecar does not run the script, so this row is a name and the check is not written. Knots #470, by LionThunderFingers, recounts after the script runs and credits a key only when a signature verified against it.",
+  "slug": "unverified-key",
+  "checker": null
+}

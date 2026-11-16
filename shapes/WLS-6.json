@@ -3,15 +3,16 @@
   "kind": "whitelist",
   "carry": "definition",
   "title": "Lightning anchor sweep",
-  "from": "cesspool",
+  "from": "cesspool; Knots #481",
   "schema": {
     "spends": "BOLT 3 anchor outputs",
     "witness_script": "33-byte compressed key, CHECKSIG IFDUP NOTIF 16 CSV ENDIF",
-    "parent_script": "P2WSH of that witness script",
+    "parent_script": "P2WSH of that witness script, or P2SH of that program",
+    "knots_name": "ln-anchor",
     "only_output": "opreturn",
     "opreturn_payload_bytes_max": 3
   },
-  "note": "The spending witness reveals the anchor script. The parent output must be the pay-to-witness-script-hash of that script. Not an insert package.",
+  "note": "The spending witness reveals the BOLT 3 anchor. The parent is the pay-to-witness-script-hash of that script, or P2SH of that same program. Knots #481 names this ln-anchor. Offered and received HTLCs are WLS-14, and to_local is WLS-13. Not an insert package.",
   "slug": "lightning-anchor-sweep",
   "checker": "lightning-anchor-sweep"
 }

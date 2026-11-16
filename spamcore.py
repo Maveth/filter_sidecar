@@ -20,6 +20,7 @@ CHECKERS = frozenset({
     "dust-sweep",
     "lightning-anchor-sweep",
     "p2a-sweep",
+    "powpeg-flyover",
     "consolidation",
     "cat21",
     "runestone",
@@ -364,6 +365,56 @@ def _bare_inscription(script: bytes) -> bool:
     return b"ord" in script and script.endswith(b"\x6d") and b"\x00\x63" not in script
 
 
+def _ops(script: bytes) -> list[tuple[int, bytes]] | None:
+    """Opcodes and the bytes each push carries. None when the script does not parse."""
+    ops: list[tuple[int, bytes]] = []
+    off = 0
+    try:
+        while off < len(script):
+            op = script[off]
+            off += 1
+            if 1 <= op <= 75:
+                data = script[off:off + op]
+                if len(data) != op:
+                    return None
+                off += op
+                ops.append((op, data))
+                continue
+            if op == 76:
+                if off >= len(script):
+                    return None
+                size = script[off]
+                off += 1
+                data = script[off:off + size]
+                if len(data) != size:
+                    return None
+                off += size
+                ops.append((op, data))
+                continue
+            if op == 77:
+                if off + 2 > len(script):
+                    return None
+                size = int.from_bytes(script[off:off + 2], "little")
+                off += 2
+                data = script[off:off + size]
+                if len(data) != size:
+                    return None
+                off += size
+                ops.append((op, data))
+                continue
+            ops.append((op, b""))
+        return ops
+    except (ValueError, IndexError):
+        return None
+
+
+def _small_number(op: int, data: bytes) -> bool:
+    """OP_0, OP_1NEGATE, OP_1 through OP_16, or a push of at most 5 bytes."""
+    if op in (0x00, 0x4F) or 0x51 <= op <= 0x60:
+        return True
+    return 1 <= op <= 75 and 1 <= len(data) <= 5
+
+
 def _lightning_anchor_script(script: bytes) -> bool:
     """BOLT 3 anchor witness script: a compressed key, then CHECKSIG IFDUP NOTIF 16 CSV ENDIF."""
     return (
@@ -372,6 +423,95 @@ def _lightning_anchor_script(script: bytes) -> bool:
         and script[1] in (2, 3)
         and script[34:] == LIGHTNING_ANCHOR_TAIL
     )
+
+
+def _p2sh(script: bytes) -> bytes:
+    digest = hashlib.new("ripemd160", hashlib.sha256(script).digest()).digest()
+    return b"\xa9\x14" + digest + b"\x87"
+
+
+def _input_scripts(raw: bytes) -> list[bytes] | None:
+    """The scriptSig of each input, in order."""
+    if not raw or len(raw) < 10:
+        return None
+    try:
+        off = 4
+        if off + 2 <= len(raw) and raw[off] == 0x00 and raw[off + 1] == 0x01:
+            off += 2
+        vin, off = _read_varint(raw, off)
+        scripts = []
+        for _ in range(vin):
+            off += 36
+            slen, off = _read_varint(raw, off)
+            scripts.append(raw[off:off + slen])
+            off += slen + 4
+        return scripts
+    except (ValueError, IndexError):
+        return None
+
+
+def _pushed_script(script_sig: bytes) -> bytes | None:
+    """The one item a P2SH scriptSig pushes, when that is all it contains."""
+    if not script_sig:
+        return None
+    op = script_sig[0]
+    if 1 <= op <= 75 and len(script_sig) == 1 + op:
+        return script_sig[1:]
+    return None
+
+
+def _bare_timelock(script: bytes) -> bool:
+    """A leaf that is only a small number and CHECKSEQUENCEVERIFY or CHECKLOCKTIMEVERIFY."""
+    ops = _ops(script)
+    if ops is None or len(ops) != 2:
+        return False
+    return _small_number(ops[0][0], ops[0][1]) and ops[1][0] in (0xB1, 0xB2)
+
+
+def _legacy_multisig_end(ops: list[tuple[int, bytes]], start: int) -> int | None:
+    """Index after m <33-byte key>... n CHECKMULTISIG, or None."""
+    if start >= len(ops) or not (0x51 <= ops[start][0] <= 0x60):
+        return None
+    need = ops[start][0] - 0x50
+    index = start + 1
+    keys = 0
+    while index < len(ops) and ops[index][0] == 0x21 and len(ops[index][1]) == 33:
+        keys += 1
+        index += 1
+    if index + 1 >= len(ops) or not (0x51 <= ops[index][0] <= 0x60):
+        return None
+    total = ops[index][0] - 0x50
+    if ops[index + 1][0] != 0xAE or keys != total or need > total or keys < 1:
+        return None
+    return index + 2
+
+
+def _is_powpeg_script(script: bytes) -> bool:
+    """Rootstock PowPeg: NOTIF multisig ELSE <n> CSV DROP multisig ENDIF, with an optional dropped 32 bytes."""
+    ops = _ops(script)
+    if not ops:
+        return False
+    index = 0
+    if len(ops) >= 2 and len(ops[0][1]) == 32 and ops[1][0] == 0x75:
+        index = 2
+    if index >= len(ops) or ops[index][0] != 0x64:
+        return False
+    index = _legacy_multisig_end(ops, index + 1)
+    if index is None or index + 4 > len(ops):
+        return False
+    if ops[index][0] != 0x67 or not _small_number(ops[index + 1][0], ops[index + 1][1]):
+        return False
+    if ops[index + 2][0] != 0xB2 or ops[index + 3][0] != 0x75:
+        return False
+    index = _legacy_multisig_end(ops, index + 4)
+    if index is None or index + 1 != len(ops):
+        return False
+    return ops[index][0] == 0x68
+
+
+def _powpeg_excuses(script: bytes, flags: dict) -> bool:
+    """True when this script is the PowPeg shape and that whitelist is on."""
+    return flags.get("whitelist_powpeg") is True and _is_powpeg_script(script)
 
 
 def _p2wsh(script: bytes) -> bytes:
@@ -461,6 +601,15 @@ def _only_opreturn(outputs: list[tuple[int, bytes]], cap: int) -> bool:
     return payload is not None and len(payload) <= cap
 
 
+def _lightning_parent(script: bytes, prevout: bytes, script_sig: bytes) -> bool:
+    """The parent locks the BOLT 3 anchor script, as P2WSH or as P2SH of that program."""
+    program = _p2wsh(script)
+    if prevout == program:
+        return True
+    redeem = _pushed_script(script_sig)
+    return redeem == program and prevout == _p2sh(program)
+
+
 def _is_lightning_anchor_sweep(
     raw: bytes, outputs: list[tuple[int, bytes]], prevouts: list[bytes] | None, flags: dict,
 ) -> bool:
@@ -473,19 +622,34 @@ def _is_lightning_anchor_sweep(
     if not _only_opreturn(outputs, cap):
         return False
     parts = _tx_parts(raw)
-    if parts is None or parts[0] < 1 or len(prevouts) != parts[0] or len(parts[2]) != parts[0]:
+    scripts = _input_scripts(raw)
+    if (
+        parts is None or scripts is None or parts[0] < 1
+        or len(prevouts) != parts[0] or len(parts[2]) != parts[0] or len(scripts) != parts[0]
+    ):
         return False
-    for items, prevout in zip(parts[2], prevouts):
+    for items, prevout, script_sig in zip(parts[2], prevouts, scripts):
         script = _witness_script(items)
-        if script is None or not _lightning_anchor_script(script) or prevout != _p2wsh(script):
+        if script is None or not _lightning_anchor_script(script) or not _lightning_parent(script, prevout, script_sig):
             return False
     return True
+
+
+def _anchor_leaf(items: list[bytes], prevout: bytes) -> bool:
+    """A taproot leaf that is OP_TRUE, or only a small number and a timelock, spent with an empty stack."""
+    if len(prevout) != 34 or prevout[:1] != b"\x51":
+        return False
+    stack = items[:-1] if items and items[-1][:1] == b"\x50" else items
+    if len(stack) != 2 or not _is_taproot_control_block(stack[-1]):
+        return False
+    script = stack[0]
+    return script == b"\x51" or _bare_timelock(script)
 
 
 def _is_p2a_sweep(
     raw: bytes, outputs: list[tuple[int, bytes]], prevouts: list[bytes] | None, flags: dict,
 ) -> bool:
-    """A sweep whose inputs spend pay-to-anchor outputs and whose only output is a short OP_RETURN."""
+    """A sweep of a pay-to-anchor output, an OP_TRUE leaf, or a bare timelock leaf."""
     if flags.get("whitelist_p2a_sweep") is not True or not prevouts:
         return False
     cap = flags.get("p2a_sweep_payload_max")
@@ -496,7 +660,10 @@ def _is_p2a_sweep(
     parts = _tx_parts(raw)
     if parts is None or parts[0] < 1 or len(prevouts) != parts[0] or len(parts[2]) != parts[0]:
         return False
-    return all(not items and prevout == ANCHOR_SCRIPT for items, prevout in zip(parts[2], prevouts))
+    pairs = list(zip(parts[2], prevouts))
+    if all(not items and prevout == ANCHOR_SCRIPT for items, prevout in pairs):
+        return True
+    return all(_anchor_leaf(items, prevout) for items, prevout in pairs)
 
 
 def _is_dust_sweep(outputs: list[tuple[int, bytes]], flags: dict) -> bool:
@@ -770,11 +937,15 @@ def tx_reject_reason(
                 if script is not None:
                     witness_scripts.append(script)
                     reason = _script_spam(script, False, flags)
+                    if reason == "fakemultisig" and _powpeg_excuses(script, flags):
+                        reason = None
                     if reason:
                         return reason
             lock_off = off
         for script in input_scripts:
             reason = _script_spam(script, False, flags)
+            if reason == "fakemultisig" and _powpeg_excuses(script, flags):
+                reason = None
             if reason:
                 return reason
         if flags.get("rejectparasites") and lock_off + 4 <= len(raw):

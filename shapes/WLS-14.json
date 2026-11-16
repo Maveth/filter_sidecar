@@ -1,0 +1,25 @@
+{
+  "id": "WLS-14",
+  "kind": "whitelist",
+  "carry": "definition",
+  "title": "BOLT 3 HTLC",
+  "from": "Knots #481",
+  "schema": {
+    "forms": [
+      "offered HTLC",
+      "offered HTLC with anchors",
+      "received HTLC",
+      "received HTLC with anchors"
+    ],
+    "kind": "P2WSH, and the same bytes in P2SH",
+    "knots_names": [
+      "ln-htlc-offered",
+      "ln-htlc-offered-anchors",
+      "ln-htlc-received",
+      "ln-htlc-received-anchors"
+    ]
+  },
+  "note": "The four BOLT 3 HTLC scripts. The anchor output those channels also use is WLS-6, not this row. This row is a name. The check is not written. Not an insert package.",
+  "slug": "bolt3-htlc",
+  "checker": null
+}

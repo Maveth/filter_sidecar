@@ -1,0 +1,16 @@
+{
+  "id": "WLS-12",
+  "kind": "whitelist",
+  "carry": "definition",
+  "title": "Miniscript behind a timelock or one hash check",
+  "from": "Knots #481",
+  "schema": {
+    "around": "sane miniscript, or a lone OP_TRUE",
+    "leading_or_trailing": ["<n> CSV DROP", "<n> CLTV DROP", "one hash check"],
+    "also": "a lone uncompressed key behind those checks, in P2SH only",
+    "seen_in": ["Ark hop leaves", "JoinMarket", "Boltz claims", "Core DAO", "batch consolidations"]
+  },
+  "note": "Knots #481 names the forms miniscript-timelock, miniscript-hash, miniscript-timelock-hash, and anyone-after-checks. The leaf inside an Ark hop is this class. WLS-1 does not use it: the same shape is also JoinMarket and Boltz, and those must not be inserted as an Ark package. This row is a name. The check is not written. Not an insert package.",
+  "slug": "miniscript-behind-check",
+  "checker": null
+}

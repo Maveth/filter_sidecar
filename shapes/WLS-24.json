@@ -1,0 +1,15 @@
+{
+  "id": "WLS-24",
+  "kind": "whitelist",
+  "carry": "definition",
+  "title": "Tapscript threshold",
+  "from": "Knots #481",
+  "schema": {
+    "script": "(<key> CHECKSIGVERIFY)* <key> CHECKSIG (<key> CHECKSIGADD)+ then an optional k and GREATERTHANOREQUAL, NUMEQUAL, or EQUAL",
+    "kind": "tapscript",
+    "knots_name": "checksigadd-threshold"
+  },
+  "note": "A tapscript k-of-n written with CHECKSIGADD. The threshold compare may be GREATERTHANOREQUAL instead of NUMEQUAL. Without the compare, the signature count itself is the result. This row is a name. The check is not written. Not an insert package.",
+  "slug": "tapscript-threshold",
+  "checker": null
+}

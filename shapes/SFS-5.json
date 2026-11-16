@@ -8,7 +8,7 @@
     "unsigned_keys_min": 11,
     "per": "script"
   },
-  "note": "Plumb counts a key as signed only when a signature in the spend verifies against it. This catalog does not do that check yet. A 2-of-3 and an 11-of-15 federation spend are the cases that must stay out of this row.",
+  "note": "Plumb counts a key as signed only when a signature in the spend verifies against it. This catalog does not do that check yet. A 2-of-3 and an 11-of-15 federation spend are the cases that must stay out of this row. A key that sits beside CHECKSIG and still never verifies is SFS-32.",
   "slug": "fake-multisig",
   "checker": "fake-multisig"
 }

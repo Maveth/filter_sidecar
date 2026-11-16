@@ -1,0 +1,15 @@
+{
+  "id": "WLS-13",
+  "kind": "whitelist",
+  "carry": "definition",
+  "title": "BOLT 3 to_local",
+  "from": "Knots #481",
+  "schema": {
+    "script": "IF key ELSE <n> CSV DROP key ENDIF CHECKSIG",
+    "kind": "P2WSH, and the same bytes in P2SH",
+    "knots_name": "ln-to-local"
+  },
+  "note": "The second-stage output of a BOLT 3 local commitment. The anchor sweep is WLS-6. This row is a name. The check is not written. Not an insert package.",
+  "slug": "bolt3-to-local",
+  "checker": null
+}

@@ -53,6 +53,7 @@ LIVE_RULE = {
     "dust-sweep": "whitelist_dust_sweep",
     "lightning-anchor-sweep": "whitelist_lightning_anchor_sweep",
     "p2a-sweep": "whitelist_p2a_sweep",
+    "powpeg-flyover": "whitelist_powpeg",
     "package-paid": "whitelist_package_paid",
     "empty-runestone": "whitelist_empty_runestone",
     "commitment-32": "whitelist_commitment_32",
@@ -69,6 +70,7 @@ EXEMPTS = {
     "opreturn-text": ("commitment-32", "empty-opreturn", "dust-sweep", "lightning-anchor-sweep", "p2a-sweep"),
     "opreturn-data": ("commitment-32", "empty-opreturn", "dust-sweep", "lightning-anchor-sweep", "p2a-sweep"),
     "opreturn-stack": ("commitment-32", "empty-opreturn"),
+    "fake-multisig": ("powpeg-flyover",),
 }
 
 # A Knots option that defaults on. The shape cannot be turned off while this
@@ -437,6 +439,13 @@ def _conf_line(key: str, conf: dict) -> str:
 
 def source_of(origin: str) -> tuple[str, str]:
     text = (origin or "").strip()
+    number = ""
+    mark = "Knots #"
+    if mark in text:
+        tail = text.split(mark, 1)[1]
+        number = "".join(ch for ch in tail if ch.isdigit())
+    if number:
+        return text, f"https://github.com/bitcoinknots/bitcoin/pull/{number}"
     if text.startswith("cesspool"):
         return "cesspool", CESSPOOL
     if text.startswith("gbt-rules"):

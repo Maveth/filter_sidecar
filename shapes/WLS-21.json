@@ -1,0 +1,18 @@
+{
+  "id": "WLS-21",
+  "kind": "whitelist",
+  "carry": "definition",
+  "title": "Custodial index switch",
+  "from": "Knots #481",
+  "schema": {
+    "script": "a chain of DUP <index> EQUAL IF DROP <branch> ELSE, then one final branch and the matching ENDIFs",
+    "branches": [
+      "two key hashes checked by a shared tail",
+      "the same hashes checked inline"
+    ],
+    "knots_name": "index-switch"
+  },
+  "note": "A witness item picks which pair of key hashes can spend. One script uses one branch form, not both. This row is a name. The check is not written. Not an insert package.",
+  "slug": "index-switch",
+  "checker": null
+}

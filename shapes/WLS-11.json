@@ -1,0 +1,15 @@
+{
+  "id": "WLS-11",
+  "kind": "whitelist",
+  "carry": "definition",
+  "title": "Sane miniscript",
+  "from": "Knots #481",
+  "schema": {
+    "script": "a revealed P2SH, P2WSH, or tapscript that parses as miniscript and is sane",
+    "keys": "opaque bytes",
+    "not_required": ["no duplicate keys", "no mixed timelocks"]
+  },
+  "note": "Knots #481 would relay this and then count unproven keys and hashes past an allowance. An IF/ELSE of two known shapes is the same class, not its own row. This row is a name. The check is not written, and the field budget is not copied. Not an insert package.",
+  "slug": "sane-miniscript",
+  "checker": null
+}

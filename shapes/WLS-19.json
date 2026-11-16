@@ -1,0 +1,20 @@
+{
+  "id": "WLS-19",
+  "kind": "whitelist",
+  "carry": "definition",
+  "title": "Four-path VHTLC",
+  "from": "Knots #481",
+  "schema": {
+    "paths": [
+      "2 of 2",
+      "2 of 2",
+      "key and preimage after CSV",
+      "key after a longer CSV"
+    ],
+    "kind": "P2WSH",
+    "knots_name": "four-path-vhtlc"
+  },
+  "note": "Four nested paths: two immediate 2-of-2 spends, then a key plus a SHA256 preimage after a CSV, then a key after a longer CSV. This row is a name. The check is not written. Not an insert package.",
+  "slug": "four-path-vhtlc",
+  "checker": null
+}
