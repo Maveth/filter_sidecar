@@ -66,6 +66,10 @@ class HelloTest(unittest.TestCase):
             self.assertIsNone(peer["whitelist"][0].get("parent"))
             self.assertEqual(left.packages[digest]["parent"], "ab")
             self.assertEqual(left.packages[digest]["id"], package_id("WLS-1", "ab", "cd"))
+            left_traffic = json.loads((root / "local.peers.traffic.json").read_text())
+            right_traffic = json.loads((root / "seed.peers.traffic.json").read_text())
+            self.assertEqual(left_traffic["in"], [digest])
+            self.assertEqual(right_traffic["out"], [digest])
             sent = right.sent_items
             self.assertGreater(sent, 0)
             self.assertTrue(right.dial(left.listen))

@@ -8,6 +8,7 @@ rules.json
 *.status.json
 *.manual.json
 *.probes.json
+*.traffic.json
 sift-local.json
 shapes.local.json
 config.filter.json

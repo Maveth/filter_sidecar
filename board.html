@@ -649,8 +649,8 @@ function show(board) {
   const onNode = spamOn.filter((row) => row.owner === "node").length;
   const onSide = spamOn.filter((row) => row.owner === "sidecar").length;
   const whitelistOn = (board.whitelist || []).filter((row) => row.live).length;
-  const pkgIn = (board.received && board.received.peers || []).reduce((sum, peer) => sum + (Number(peer.packages) || 0), 0);
-  const pkgOut = (board.sent || []).filter((row) => row.parent && row.child).length;
+  const pkgIn = Number(board.package_in) || 0;
+  const pkgOut = Number(board.package_out) || 0;
   const peers = board.peers || [];
   const peerDirs = (row) => row.directions || (row.direction ? [row.direction] : []);
   const peersIn = peers.filter((row) => row.accept && peerDirs(row).includes("in")).length;

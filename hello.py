@@ -375,6 +375,7 @@ class Directory:
                 package = self.packages.get(item_id[4:])
                 if package:
                     items.append(package)
+                    self._note_package("out", item_id[4:])
                 continue
             shape = shapes.get(item_id)
             if shape and shape.get("transfer") is not False:
@@ -412,6 +413,7 @@ class Directory:
                 digest = self.add_package(shape_id, parent, child, extra)
                 if digest:
                     self.have_ids.add(f"pkg:{digest}")
+                    self._note_package("in", digest)
                     if digest not in self.submitted and digest not in self.pending_submit:
                         self.pending_submit.append(digest)
                 continue
@@ -501,6 +503,27 @@ class Directory:
             flush=True,
         )
         self.publish_inbox()
+
+    def _traffic_path(self) -> Path:
+        return self.path.with_suffix(".traffic.json")
+
+    def _note_package(self, direction: str, digest: str) -> None:
+        path = self._traffic_path()
+        try:
+            loaded = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            loaded = {}
+        if not isinstance(loaded, dict):
+            loaded = {}
+        rows = loaded.get(direction)
+        if not isinstance(rows, list):
+            rows = []
+        if digest not in rows:
+            rows.append(digest)
+        loaded[direction] = rows
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text(json.dumps(loaded, indent=2) + "\n")
+        tmp.replace(path)
 
     def publish_inbox(self) -> None:
         if self.inbox_path is None:

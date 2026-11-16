@@ -258,6 +258,20 @@ def load_private_shapes(base: Path) -> list[dict]:
     return rows
 
 
+def load_package_counts(log_path: Path) -> tuple[int, int]:
+    """Verified packages received, then packages sent. One hash counts once."""
+    path = log_path.with_suffix(".peers.traffic.json")
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return 0, 0
+    if not isinstance(data, dict):
+        return 0, 0
+    incoming = data.get("in") if isinstance(data.get("in"), list) else []
+    outgoing = data.get("out") if isinstance(data.get("out"), list) else []
+    return len(dict.fromkeys(incoming)), len(dict.fromkeys(outgoing))
+
+
 def load_sent(path: Path) -> list[dict]:
     if not path.is_file():
         return []
@@ -1056,6 +1070,7 @@ def view(shapes_path: Path, rules: dict, log_path: Path, sent_path: Path) -> dic
     datacarrier_off = rules.get("datacarrier") is False
     self_row, peers = load_peers(log_path)
     received = load_inbox(log_path)
+    package_in, package_out = load_package_counts(log_path)
     stopped = stopped_from_log(log_path)
     counts = load_counts(log_path, stopped["total"], peers)
     return {
@@ -1070,6 +1085,8 @@ def view(shapes_path: Path, rules: dict, log_path: Path, sent_path: Path) -> dic
         "conf": __import__("settings").bitcoin_conf_lines(rules),
         "received": received,
         "peers_note": "Listening for a versioned hello. No other sidecar has answered yet.",
+        "package_in": package_in,
+        "package_out": package_out,
         "sent": load_sent(sent_path),
         "sent_note": "A sent whitelist package is the shape, then the signed parent, then the child. None have been recorded.",
         "stopped": stopped,
