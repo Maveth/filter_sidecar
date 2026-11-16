@@ -226,6 +226,41 @@ class RulesTest(unittest.TestCase):
         self.assertTrue(spamcore.paid_by_descendant({}, 17, 155, 500, 200))
         self.assertFalse(spamcore.paid_by_descendant({}, 200, 100, 500, 200))
 
+    def test_a_received_ark_set_is_inserted_parent_then_child(self):
+        class Fake:
+            def __init__(self):
+                self.calls = []
+
+            def call(self, method, params):
+                self.calls.append((method, params))
+                if method == "decoderawtransaction":
+                    raw = params[0]
+                    if raw == "aa":
+                        return {"txid": "parent", "vin": [{"txid": "coin"}]}
+                    return {"txid": "child", "vin": [{"txid": "parent"}]}
+                if method == "sendrawtransaction":
+                    return params[0]
+                raise RuntimeError(f"{method}: unknown")
+
+        node = Fake()
+        result = sidecar.submit_package(node, {"shape": "WLS-1", "parent": "aa", "child": "bb", "extra": []})
+        self.assertEqual(result, "added added")
+        self.assertEqual(node.calls[2][0], "sendrawtransaction")
+        self.assertEqual(node.calls[2][1][0], "aa")
+        self.assertEqual(node.calls[2][1][3], sidecar.ARK_IGNORE)
+        self.assertEqual(node.calls[3][1][0], "bb")
+        self.assertEqual(node.calls[3][1][3], [])
+
+        class Conflict(Fake):
+            def call(self, method, params):
+                if method == "sendrawtransaction":
+                    raise RuntimeError("sendrawtransaction: txn-mempool-conflict")
+                return super().call(method, params)
+
+        stopped = sidecar.submit_package(Conflict(), {"shape": "WLS-1", "parent": "aa", "child": "bb", "extra": []})
+        self.assertIn("conflict", stopped)
+        self.assertTrue(stopped.endswith("stopped"))
+
     def test_each_paid_chain_is_its_own_package(self):
         sets = sidecar.paid_sets({
             "parent-a": {"mid", "child-a"},

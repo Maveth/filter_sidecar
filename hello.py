@@ -137,6 +137,8 @@ class Directory:
         self._tried: dict[str, float] = {}
         self.packages: dict[str, dict] = {}
         self.have_ids: set[str] = set()
+        self.pending_submit: list[str] = []
+        self.submitted: set[str] = set()
         self.sent_items = 0
         self.catalog = catalog
         self.path = path
@@ -407,8 +409,11 @@ class Directory:
                 if package_id(shape_id, parent, child, extra) != str(item.get("id") or ""):
                     print(f"package rejected hash {shape_id}", flush=True)
                     continue
-                if self.add_package(shape_id, parent, child, extra):
-                    self.have_ids.add(f"pkg:{item['id']}")
+                digest = self.add_package(shape_id, parent, child, extra)
+                if digest:
+                    self.have_ids.add(f"pkg:{digest}")
+                    if digest not in self.submitted and digest not in self.pending_submit:
+                        self.pending_submit.append(digest)
                 continue
             row = spamcore.sanitize_shape(item)
             if not row.get("id") or row["id"] in seen:

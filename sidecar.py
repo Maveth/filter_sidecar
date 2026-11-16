@@ -97,6 +97,97 @@ def rules_stamp(path: Path) -> tuple[int, int]:
     return st.st_mtime_ns, st.st_size
 
 
+ARK_IGNORE = ["min relay fee not met", "dust-nonanchor", "dust-nonzero", "dust"]
+FEE_IGNORE = ["min relay fee not met"]
+ALREADY = ("already in mempool", "txn-already-in-mempool", "txn-already-known")
+
+
+def _rpc_text(exc: Exception) -> str:
+    return str(exc).lower()
+
+
+def send_one(node: Node, raw_hex: str, ignores: list[str]) -> str:
+    """Add one transaction. A conflict stops the caller. An already-present tx is fine."""
+    try:
+        node.call("sendrawtransaction", [raw_hex, 0, 0, ignores])
+    except RuntimeError as exc:
+        text = _rpc_text(exc)
+        if any(phrase in text for phrase in ALREADY):
+            return "already"
+        if "conflict" in text:
+            return "conflict"
+        return "rejected"
+    return "added"
+
+
+def package_hexes(pkg: dict) -> list[str]:
+    hexes = [str(pkg.get("parent") or "")]
+    child = str(pkg.get("child") or "")
+    if child:
+        hexes.append(child)
+    hexes.extend(str(part) for part in pkg.get("extra") or [])
+    return [item for item in hexes if item]
+
+
+def topo_order(node: Node, hexes: list[str]) -> list[str] | None:
+    """Parents before the transactions that spend them. None if the set does not order."""
+    decoded = []
+    for raw_hex in hexes:
+        try:
+            info = node.call("decoderawtransaction", [raw_hex])
+        except RuntimeError:
+            return None
+        if not isinstance(info, dict) or not info.get("txid"):
+            return None
+        prevs = [vin["txid"] for vin in info.get("vin") or [] if isinstance(vin, dict) and vin.get("txid")]
+        decoded.append((raw_hex, info["txid"], prevs))
+    ids = {txid for _raw, txid, _prevs in decoded}
+    deps = {txid: {prev for prev in prevs if prev in ids} for _raw, txid, prevs in decoded}
+    by_id = {txid: raw_hex for raw_hex, txid, _prevs in decoded}
+    ordered_ids = []
+    while len(ordered_ids) < len(decoded):
+        ready = sorted(txid for txid, need in deps.items() if txid not in ordered_ids and not need)
+        if not ready:
+            return None
+        txid = ready[0]
+        ordered_ids.append(txid)
+        for need in deps.values():
+            need.discard(txid)
+    return [by_id[txid] for txid in ordered_ids]
+
+
+def submit_package(node: Node, pkg: dict) -> str:
+    """Insert one received set, one transaction after another. No retry on conflict."""
+    shape = str(pkg.get("shape") or "")
+    ordered = topo_order(node, package_hexes(pkg))
+    if not ordered:
+        return "unordered"
+    if shape == "WLS-1":
+        ignores_for = [ARK_IGNORE] + [[] for _ in ordered[1:]]
+    else:
+        ignores_for = [FEE_IGNORE for _ in ordered[:-1]] + [[]]
+    notes = []
+    for raw_hex, ignores in zip(ordered, ignores_for):
+        result = send_one(node, raw_hex, ignores)
+        notes.append(result)
+        if result in {"conflict", "rejected"}:
+            return " ".join(notes) + " stopped"
+    return " ".join(notes)
+
+
+def submit_pending(node: Node, directory: Directory) -> None:
+    while directory.pending_submit:
+        digest = directory.pending_submit.pop(0)
+        if digest in directory.submitted:
+            continue
+        pkg = directory.packages.get(digest)
+        directory.submitted.add(digest)
+        if not pkg:
+            continue
+        result = submit_package(node, pkg)
+        print(f"submit {pkg.get('shape')} {digest[:12]} {result}", flush=True)
+
+
 def mark(node: Node, txid: str, delta: int, reason: str, dry_run: bool) -> None:
     if dry_run:
         print(f"would mark {txid} {reason} delta={delta}", flush=True)
@@ -257,6 +348,14 @@ def scan(
             kids = []
         children[txid] = list(kids)
     want = wanted_marks(reasons, children)
+    protected = set(whitelist_ids)
+    for txid in list(whitelist_ids):
+        try:
+            protected.update(node.call("getmempooldescendants", [txid, False]) or [])
+        except Exception:
+            pass
+    for txid in protected:
+        want.pop(txid, None)
     for txid, reason in want.items():
         if txid in marked:
             marked[txid] = reason
@@ -467,6 +566,7 @@ def main() -> int:
                     if len(hexes) < 2:
                         continue
                     directory.add_package("WLS-2", hexes[0], hexes[1], hexes[2:])
+                submit_pending(node, directory)
             peers_sent = 0
             if status_path.with_name(status_path.name.replace(".status.json", ".peers.json")).is_file():
                 try:
