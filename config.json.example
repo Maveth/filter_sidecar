@@ -6,5 +6,5 @@
   "rules_file": "rules.json",
   "poll_seconds": 10,
   "fee_delta_sats": -1000000000000000,
-  "dry_run": true
+  "dry_run": false
 }

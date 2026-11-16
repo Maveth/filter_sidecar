@@ -2,7 +2,7 @@
 
 Mining policy for one Knots node. The gateway never connects to this program. Knots builds the only template. This program decides which mempool transactions that template should leave out.
 
-Not started against the live pool node. `dry_run` stays the default.
+`dry_run` is off unless the config sets it true. A missing key starts live.
 
 ## What it does
 
@@ -30,7 +30,7 @@ Every rule the app knows belongs in one of these:
 | Sidecar only | Knots accepts it. The sidecar mark keeps it out of the block. It is still relayed. |
 | Knots blocks first | A whitelist or a new pattern wants it mined, but Knots rejects it today. The app must say which Knots setting or build would let it in. |
 
-Phase 1 prints this difference in `dry_run`. It does not loosen the live node.
+With `dry_run` set true, the log prints this difference and the node is not changed. It does not loosen the live node.
 
 ## Rules
 

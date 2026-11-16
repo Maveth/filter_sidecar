@@ -30,9 +30,7 @@ cp rules.json.example rules.json
 python3 sidecar.py config.json
 ```
 
-Put the node login only in `config.json`. That file is not committed. `config.json.example` leaves the user and the password empty and points at `127.0.0.1`. Use a cookie file or fill in the user and password locally. Leave `dry_run` true until the log shows the transactions you expect. A node restart forgets the marks. The next poll walks the mempool again.
-
-Do not start this against the live pool node until `dry_run` has shown the marks you expect.
+Put the node login only in `config.json`. That file is not committed. `config.json.example` leaves the user and the password empty and points at `127.0.0.1`. Use a cookie file or fill in the user and password locally. `dry_run` is off unless that file sets it true. With it on, the log names the transactions and the node is not changed. A node restart forgets the marks. The next poll walks the mempool again.
 
 ## Page
 

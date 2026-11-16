@@ -150,6 +150,14 @@ class ShapeCardTest(unittest.TestCase):
         self.assertIsNone(board._silence({}, "not-a-reason"))
 
 
+class DryRunDefaultTest(unittest.TestCase):
+    def test_missing_dry_run_starts_live(self):
+        import sidecar
+        self.assertFalse(sidecar.dry_run_enabled({}))
+        self.assertFalse(sidecar.dry_run_enabled({"dry_run": False}))
+        self.assertTrue(sidecar.dry_run_enabled({"dry_run": True}))
+
+
 class MarkLogTest(unittest.TestCase):
     def test_mark_lines_keep_the_reason_and_skip_dry_run(self):
         text = "\n".join([

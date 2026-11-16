@@ -2,7 +2,7 @@
 """Mark spam in one node's mempool and leave the mark there.
 
 The gateway never connects to this program. Knots builds the only template.
-One node, one policy. dry_run stays on until a config turns it off.
+One node, one policy. dry_run is off unless the config sets it true.
 """
 from __future__ import annotations
 
@@ -399,6 +399,11 @@ def scan(
     }
 
 
+def dry_run_enabled(cfg: dict) -> bool:
+    """Live unless the config sets dry_run true. A missing key is not a dry run."""
+    return cfg.get("dry_run") is True
+
+
 def main() -> int:
     cfg_path = Path(sys.argv[1] if len(sys.argv) > 1 else HERE / "config.json")
     cfg = load_json(cfg_path)
@@ -409,7 +414,7 @@ def main() -> int:
     if delta >= 0:
         print("fee_delta_sats must be negative", flush=True)
         return 2
-    dry_run = cfg.get("dry_run") is not False
+    dry_run = dry_run_enabled(cfg)
     poll = max(2, int(cfg.get("poll_seconds") or 10))
     node = Node(cfg)
     print(
