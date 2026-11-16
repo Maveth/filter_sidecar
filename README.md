@@ -46,7 +46,7 @@ To show this node's policy lines, add `node-paths.json` next to the program. The
 
 ## Peers
 
-A sidecar listens on its own port. The usual search looks at each Bitcoin peer on that peer's port plus 4, which is 8337 when the peer is on 8333, once an hour per peer. The gear can set a different number. The hello carries the catalog, the git commit of this checkout, and the announced addresses this sidecar knows. A new announced address is passed to the sidecars already connected. Shape definitions are offered. A signed whitelist package is dropped unless the operator turns on accept packages. A received shape stays off.
+A sidecar listens on its own port. The usual search looks at each Bitcoin peer on that peer's port plus 4, which is 8337 when the peer is on 8333, once an hour per peer. The gear can set a different number. The hello carries ids, the git commit, and the announced addresses. It does not carry the shape files or the transactions. A peer asks for an id it does not have. A whitelist package id is the hash of the shape id, the parent, and the child. The receiver computes that hash and drops the package when it does not match. A package is not sent again to a peer that already has it. A signed package is not asked for unless accept packages is on. A received shape stays off. Nothing here is written into the node.
 
 ## Not in this repository
 

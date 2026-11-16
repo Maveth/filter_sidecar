@@ -8,6 +8,7 @@ so the other side can be dialed back.
 from __future__ import annotations
 
 import builtins
+import hashlib
 import json
 import socket
 import subprocess
@@ -50,6 +51,22 @@ def running_commit() -> str:
         ).strip()
     except (OSError, subprocess.CalledProcessError):
         return ""
+
+
+def package_id(shape_id: str, parent_hex: str, child_hex: str = "") -> str:
+    """Hash of the whitelist package. The receiver computes the same hash before keeping it."""
+    body = f"{shape_id}\n{parent_hex.strip().lower()}\n{child_hex.strip().lower()}"
+    return hashlib.sha256(body.encode()).hexdigest()
+
+
+def _hex_or_empty(value: str) -> bool:
+    if value == "":
+        return True
+    try:
+        bytes.fromhex(value)
+    except ValueError:
+        return False
+    return True
 
 
 def shareable_address(address: str) -> bool:
@@ -117,6 +134,9 @@ class Directory:
         self.announce = announce or listen
         self.commit = commit
         self._tried: dict[str, float] = {}
+        self.packages: dict[str, dict] = {}
+        self.have_ids: set[str] = set()
+        self.sent_items = 0
         self.catalog = catalog
         self.path = path
         self.carries = carries or list(CARRIES)
@@ -165,11 +185,16 @@ class Directory:
                 reply["reason"] = "proto" if remote else "malformed"
             write_hello(conn, reply)
             if accept and remote is not None:
-                offer = read_message(conn)
-                write_hello(conn, self.offer_for(remote.get("carries") or []))
-                if offer is not None:
-                    self.take_offer(remote, offer)
+                request = read_message(conn)
+                asked = request.get("ids") if isinstance(request, dict) and request.get("op") == "get" else []
+                items = self.data_for(asked)
+                write_hello(conn, {"op": "data", "items": items})
+                write_hello(conn, {"op": "get", "ids": self.wants(remote.get("inv") or [])})
+                reply_data = read_message(conn)
+                if isinstance(reply_data, dict) and reply_data.get("op") == "data":
+                    self.take_data(remote, reply_data.get("items") or [])
                 self.absorb_known(remote.get("known") or [])
+                print(f"exchange in {remote.get('name') or addr[0]} asked={len(asked)} sent={len(items)}", flush=True)
                 self.remember(remote, "in", f"{addr[0]}:{addr[1]}")
         except OSError as exc:
             print(f"hello in {addr[0]}: {exc}", flush=True)
@@ -192,11 +217,17 @@ class Directory:
                 if record_failure or (remote and remote.get("proto") not in (None, PROTO)):
                     self.remember(remote or {"listen": address, "accept": False, "reason": "proto"}, direction, address)
                 return False
-            write_hello(conn, self.offer_for(remote.get("carries") or []))
-            offer = read_message(conn)
-            if offer is not None:
-                self.take_offer(remote, offer)
+            wanted = self.wants(remote.get("inv") or [])
+            write_hello(conn, {"op": "get", "ids": wanted})
+            incoming = read_message(conn)
+            if isinstance(incoming, dict) and incoming.get("op") == "data":
+                self.take_data(remote, incoming.get("items") or [])
+            request = read_message(conn)
+            asked = request.get("ids") if isinstance(request, dict) and request.get("op") == "get" else []
+            items = self.data_for(asked)
+            write_hello(conn, {"op": "data", "items": items})
             self.absorb_known(remote.get("known") or [])
+            print(f"exchange out {remote.get('name') or address} asked={len(wanted)} sent={len(items)}", flush=True)
         except OSError:
             if record_failure:
                 self.remember({"listen": address, "accept": False, "reason": "unreachable"}, direction, address)
@@ -240,7 +271,9 @@ class Directory:
             self._tell_others(listen)
 
     def _hello(self) -> dict:
-        return hello_body(self.name, self.announce, self.catalog, self.carries, self.commit, self.known_addresses())
+        body = hello_body(self.name, self.announce, self.catalog, self.carries, self.commit, self.known_addresses())
+        body["inv"] = self.inv()
+        return body
 
     def known_addresses(self) -> list[str]:
         found = []
@@ -278,6 +311,117 @@ class Directory:
             ]
         for address in others:
             threading.Thread(target=self.dial, args=(address, "out"), daemon=True).start()
+
+    def add_package(self, shape_id: str, parent_hex: str, child_hex: str = "") -> str | None:
+        parent_hex = parent_hex.strip().lower()
+        child_hex = child_hex.strip().lower()
+        if not shape_id or not _hex_or_empty(parent_hex) or not parent_hex or not _hex_or_empty(child_hex):
+            return None
+        digest = package_id(shape_id, parent_hex, child_hex)
+        if digest in self.packages:
+            return digest
+        self.packages[digest] = {
+            "op": "package",
+            "id": digest,
+            "shape": shape_id,
+            "parent": parent_hex,
+            "child": child_hex,
+        }
+        print(f"package {shape_id} {digest[:12]}", flush=True)
+        return digest
+
+    def inv(self) -> list[str]:
+        found = []
+        for shape in self.catalog_shapes:
+            if isinstance(shape, dict) and shape.get("transfer") is not False and shape.get("id"):
+                found.append(str(shape["id"]))
+        found.extend(sorted(self.have_ids))
+        found.extend(f"pkg:{digest}" for digest in self.packages)
+        return list(dict.fromkeys(found))
+
+    def _accepts_packages(self) -> bool:
+        local_path = self.path.parent / "sift-local.json"
+        try:
+            local = json.loads(local_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return False
+        return isinstance(local, dict) and local.get("accept_packages") is True
+
+    def wants(self, their_inv: list) -> list[str]:
+        have = set(self.inv())
+        ask = []
+        for item in their_inv:
+            if not isinstance(item, str) or item in have or item in self.have_ids:
+                continue
+            if item.startswith("pkg:") and not self._accepts_packages():
+                continue
+            ask.append(item)
+        return ask[:100]
+
+    def data_for(self, ids: list) -> list[dict]:
+        items = []
+        shapes = {str(shape.get("id")): shape for shape in self.catalog_shapes if isinstance(shape, dict)}
+        for item_id in ids or []:
+            if not isinstance(item_id, str):
+                continue
+            if item_id.startswith("pkg:"):
+                package = self.packages.get(item_id[4:])
+                if package:
+                    items.append(package)
+                continue
+            shape = shapes.get(item_id)
+            if shape and shape.get("transfer") is not False:
+                row = spamcore.sanitize_shape(shape)
+                row["enabled"] = False
+                items.append(row)
+        self.sent_items += len(items)
+        return items
+
+    def take_data(self, remote: dict, items: list) -> None:
+        listen = str(remote.get("listen") or "")
+        if not listen or listen == self.listen:
+            return
+        previous = self.inbox.get(listen) or {}
+        kept = {}
+        for row in (previous.get("shapes") or []) + (previous.get("whitelist") or []):
+            if isinstance(row, dict) and row.get("enabled") is True:
+                kept[row.get("id")] = True
+        shapes = list(previous.get("shapes") or [])
+        whitelist = list(previous.get("whitelist") or [])
+        seen = {row.get("id") for row in shapes + whitelist if isinstance(row, dict)}
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            if item.get("op") == "package":
+                shape_id = str(item.get("shape") or "")
+                parent = str(item.get("parent") or "")
+                child = str(item.get("child") or "")
+                if not self._accepts_packages():
+                    continue
+                if package_id(shape_id, parent, child) != str(item.get("id") or ""):
+                    print(f"package rejected hash {shape_id}", flush=True)
+                    continue
+                if self.add_package(shape_id, parent, child):
+                    self.have_ids.add(f"pkg:{item['id']}")
+                continue
+            row = spamcore.sanitize_shape(item)
+            if not row.get("id") or row["id"] in seen:
+                continue
+            row["enabled"] = bool(kept.get(row["id"]))
+            self.have_ids.add(str(row["id"]))
+            seen.add(row["id"])
+            if row.get("kind") == "whitelist":
+                whitelist.append(row)
+            else:
+                shapes.append(row)
+        self.inbox[listen] = {
+            "name": remote.get("name") or previous.get("name") or "",
+            "catalog": self.catalog,
+            "when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "shapes": shapes,
+            "whitelist": whitelist,
+        }
+        self.publish_inbox()
 
     def offer_for(self, remote_carries: list) -> dict:
         wanted = set(remote_carries) or set(CARRIES)

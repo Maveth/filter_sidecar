@@ -94,7 +94,7 @@ A known check or a number is data in the rules file. A custom shape is a catalog
 
 ## Where the work stands
 
-The catalog, the rules file, the page, the port-plus-2 search, and the offer of shape definitions are in the program. Signed packages are accepted only when the operator turns that on. The three tighter numbers above are still the live node's numbers: data size 42, data weight 2, and 51 bytes per sigop.
+The catalog, the rules file, the page, and the port-plus-4 search are in the program. A hello lists shape ids and package hashes. A peer asks for the ones it lacks. The package hash is sha256 of the shape id, the parent hex, and the child hex. A mismatch is dropped. Signed packages are fetched only when the operator accepts packages, and they are not submitted to the node by this exchange. The three tighter numbers above are still the live node's numbers: data size 42, data weight 2, and 51 bytes per sigop.
 
 Not built: sidecars learning sidecars from other sidecars, a received shape applying just because it was enabled, and a signed feed that replaces the local rules. Local enable and disable still win.
 

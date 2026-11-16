@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from hello import PROTO, Directory, outbound_sidecar_addrs, probe_is_due, shareable_address, write_hello
+from hello import PROTO, Directory, outbound_sidecar_addrs, package_id, probe_is_due, shareable_address, write_hello
 
 
 def free_port() -> int:
@@ -48,6 +48,8 @@ class HelloTest(unittest.TestCase):
             right = Directory("seed", f"127.0.0.1:{right_port}", 1, root / "seed.peers.json")
             left.inbox_path = root / "local.inbox.json"
             right.inbox_path = root / "seed.inbox.json"
+            (root / "sift-local.json").write_text('{"accept_packages": true}\n')
+            digest = right.add_package("WLS-1", "ab", "cd")
             left.catalog_shapes = [{"id": "cat21", "kind": "spam", "carry": "definition", "title": "CAT-21", "schema": {"locktime": 21}}]
             right.catalog_shapes = [
                 {"id": "ark-exit", "kind": "whitelist", "carry": "package", "title": "Ark exit", "schema": {"parent": {"version": 3}}},
@@ -61,7 +63,17 @@ class HelloTest(unittest.TestCase):
             got = json.loads((root / "local.inbox.json").read_text())["peers"]
             peer = next(iter(got.values()))
             self.assertEqual(peer["whitelist"][0]["id"], "ark-exit")
-            self.assertIsNone(peer["whitelist"][0]["parent"])
+            self.assertIsNone(peer["whitelist"][0].get("parent"))
+            self.assertEqual(left.packages[digest]["parent"], "ab")
+            self.assertEqual(left.packages[digest]["id"], package_id("WLS-1", "ab", "cd"))
+            sent = right.sent_items
+            self.assertGreater(sent, 0)
+            self.assertTrue(right.dial(left.listen))
+            time.sleep(0.3)
+            self.assertEqual(right.sent_items, sent)
+            bad_pkg = {"op": "package", "id": "0" * 64, "shape": "WLS-1", "parent": "ab", "child": "cd"}
+            left.take_data({"listen": "203.0.113.8:8337", "name": "no"}, [bad_pkg])
+            self.assertNotIn("0" * 64, left.packages)
             self.assertFalse(peer["whitelist"][0]["enabled"])
             back = json.loads((root / "seed.inbox.json").read_text())["peers"]
             returned = next(iter(back.values()))

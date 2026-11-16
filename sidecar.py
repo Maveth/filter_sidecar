@@ -153,6 +153,7 @@ def scan(
     one_ids: set[str],
     two_ids: set[str],
     rescan: bool,
+    packages: list | None = None,
 ) -> dict[str, int]:
     txids = node.call("getrawmempool", [False]) or []
     live = set(txids)
@@ -167,6 +168,7 @@ def scan(
     for gone in [txid for txid in list(two_ids) if txid not in live]:
         two_ids.discard(gone)
     reasons: dict[str, str | None] = {}
+    ark_packages: list[tuple[str, str]] = packages if packages is not None else []
     parents: dict[str, str | None] = {}
     want_parents = flags.get("whitelist_lightning_anchor_sweep") is True or flags.get("whitelist_p2a_sweep") is True
 
@@ -201,6 +203,7 @@ def scan(
             )
             if tx_is_ark_whitelist(raw, flags, fee_sat):
                 whitelist_ids.add(txid)
+                ark_packages.append((raw_hex, txid))
             else:
                 whitelist_ids.discard(txid)
             span = whitelist_items(
@@ -411,7 +414,20 @@ def main() -> int:
                 flags = load_json(rules_path)
                 stamp = now
                 print("rules loaded", flush=True)
-            counts = scan(node, flags, delta, dry_run, decided, marked, whitelist_ids, one_ids, two_ids, rescan)
+            found_packages: list[tuple[str, str]] = []
+            counts = scan(node, flags, delta, dry_run, decided, marked, whitelist_ids, one_ids, two_ids, rescan, found_packages)
+            if listen:
+                for raw_hex, txid in found_packages:
+                    child_hex = ""
+                    try:
+                        kids = node.call("getmempooldescendants", [txid, False]) or []
+                    except Exception:
+                        kids = []
+                    if kids:
+                        child = node.call("getrawtransaction", [kids[0]])
+                        if isinstance(child, str):
+                            child_hex = child
+                    directory.add_package("WLS-1", raw_hex, child_hex)
             peers_sent = 0
             if status_path.with_name(status_path.name.replace(".status.json", ".peers.json")).is_file():
                 try:
