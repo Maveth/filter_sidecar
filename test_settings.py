@@ -11,6 +11,17 @@ import settings
 import ui
 
 
+class PublishedTest(unittest.TestCase):
+    def test_published_address_rejects_a_wildcard(self):
+        with self.assertRaises(ValueError):
+            board.clean_published("0.0.0.0", 8337)
+        host, port = board.clean_published("203.0.113.9", "8337")
+        self.assertEqual((host, port), ("203.0.113.9", 8337))
+        self.assertEqual(board.clean_whitelist_delta("1000"), 1000)
+        with self.assertRaises(ValueError):
+            board.clean_whitelist_delta(-1)
+
+
 class NoticeTest(unittest.TestCase):
     def test_whitelist_off_has_no_knots_notice(self):
         self.assertIsNone(settings.knots_notice(False))

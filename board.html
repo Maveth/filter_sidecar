@@ -86,6 +86,11 @@
   <section id="stopped" hidden></section>
   <section id="settings" hidden>
     <form id="local">
+      <h2>This sidecar</h2>
+      <label>Name <input name="name" maxlength="40" placeholder="local"></label>
+      <label>Published address <input name="publish_host" placeholder="203.0.113.9"> port <input name="publish_port" type="number" min="1" max="65535" placeholder="8337"></label>
+      <p class="note">Other sidecars dial this name and address. 0.0.0.0 and 127.0.0.1 are not shared, so a peer that connects in cannot be dialed back.</p>
+      <label>Whitelist mining priority <input name="whitelist_delta_sats" type="number" min="0" max="1000000000" value="1000"> sats. Added on this node when a whitelist transaction is scanned. A dust anchor cannot take the priority itself, so it is added to the child. It is not relayed.</label>
       <label><input type="checkbox" name="search_port_plus_2"> Search Bitcoin peers</label>
       <label>Port added <input name="port_offset" type="number" min="1" max="100" value="4"> The base is the peer port plus this. 4 dials 8337 when the peer is on 8333.</label>
       <label><input type="checkbox" name="accept_packages"> Accept signed whitelist packages from peers</label>
@@ -188,6 +193,10 @@ document.getElementById("gear").addEventListener("click", async () => {
   form.port_offset.value = local.port_offset || 4;
   form.accept_packages.checked = local.accept_packages === true;
   form.import_received.checked = local.import_received === true;
+  form.name.value = local.name || "";
+  form.publish_host.value = local.publish_host || "";
+  form.publish_port.value = local.publish_port || "";
+  form.whitelist_delta_sats.value = Number.isFinite(Number(local.whitelist_delta_sats)) ? local.whitelist_delta_sats : 1000;
   await refreshTail();
   document.getElementById("node-conf").hidden = true;
   document.getElementById("conf").hidden = true;
@@ -204,6 +213,10 @@ document.getElementById("local").addEventListener("submit", async (event) => {
       port_offset: Number(form.port_offset.value || 4),
       accept_packages: form.accept_packages.checked,
       import_received: form.import_received.checked,
+      name: form.name.value,
+      publish_host: form.publish_host.value,
+      publish_port: form.publish_port.value,
+      whitelist_delta_sats: Number(form.whitelist_delta_sats.value),
     }),
   });
   const saved = await response.json();
@@ -215,6 +228,10 @@ document.getElementById("local").addEventListener("submit", async (event) => {
   form.port_offset.value = saved.port_offset || 4;
   form.accept_packages.checked = saved.accept_packages === true;
   form.import_received.checked = saved.import_received === true;
+  form.name.value = saved.name || "";
+  form.publish_host.value = saved.publish_host || "";
+  form.publish_port.value = saved.publish_port || "";
+  form.whitelist_delta_sats.value = Number.isFinite(Number(saved.whitelist_delta_sats)) ? saved.whitelist_delta_sats : 1000;
   document.getElementById("set-status").textContent = "Saved.";
 });
 
@@ -688,7 +705,8 @@ function show(board) {
   const waiting = added.map((address) => `<tr><td>${esc(address)}</td><td></td><td></td><td></td><td></td><td></td><td></td><td>added</td><td><button type="button" data-act="delete-peer" data-address="${esc(address)}">Delete</button></td></tr>`).join("");
   const peerTable = `${mine}
     <form id="add-peer"><input name="address" placeholder="host:port" aria-label="Peer address"> <button type="submit">Add peer</button> <button type="button" id="search-peers">Search port + ${Number(local.port_offset) || 4}</button></form>
-    <p class="note">${local.search_port_plus_2 === false ? "Peer-port search is off." : `Search dials this node's outbound Bitcoin peers at their port plus ${Number(local.port_offset) || 4}.`} Announced addresses are shared. A new one is passed on when it connects. ${local.accept_packages ? "Signed packages from peers are kept." : "Signed packages are not accepted. Shape lists still are."} ${local.import_received ? "Import is on. A received shape stays off until you turn its row on." : "Import is off. A downloaded shape stays in the inbox."}</p>
+    <p class="note">Add peer is another sidecar. Your own name and published address are in Settings.</p>
+    <p class="note">${local.search_port_plus_2 === false ? "Peer-port search is off." : `Search dials this node's outbound Bitcoin peers at their port plus ${Number(local.port_offset) || 4}.`} Announced addresses are shared. A new one is passed on when it connects. An address of 0.0.0.0 is not passed on and cannot be dialed. ${local.accept_packages ? "Signed packages from peers are kept." : "Signed packages are not accepted. Shape lists still are."} ${local.import_received ? "Import is on. A received shape stays off until you turn its row on." : "Import is off. A downloaded shape stays in the inbox."}</p>
     ${(board.peers || []).length || added.length ? `<table><tr><th>Address</th><th>Name</th><th>Direction</th><th>Protocol</th><th>Catalog</th><th>Commit</th><th>Carries</th><th>Handshake</th><th></th></tr>${peerRows}${waiting}</table>` : `<p>${esc(board.peers_note)}</p>`}`;
   document.getElementById("peers").innerHTML = peerTable;
   const sent = board.sent.length

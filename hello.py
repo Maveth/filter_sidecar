@@ -273,6 +273,19 @@ class Directory:
         if row["accept"] and not previous.get("accept") and shareable_address(listen):
             self._tell_others(listen)
 
+    def set_identity(self, name: str, announce: str) -> None:
+        """Use a saved name and published address on the next hello."""
+        changed = False
+        cleaned = name.strip()
+        if cleaned and cleaned != self.name:
+            self.name = cleaned[:40]
+            changed = True
+        if announce and shareable_address(announce) and announce != self.announce:
+            self.announce = announce
+            changed = True
+        if changed:
+            self.publish()
+
     def _hello(self) -> dict:
         body = hello_body(self.name, self.announce, self.catalog, self.carries, self.commit, self.known_addresses())
         body["inv"] = self.inv()

@@ -366,6 +366,7 @@ def scan(
     packages: list | None = None,
     paid: list | None = None,
     boosted: set[str] | None = None,
+    whitelist_delta: int = WHITELIST_DELTA,
 ) -> dict[str, int]:
     if boosted is None:
         boosted = set()
@@ -472,7 +473,7 @@ def scan(
     lift = {txid for txid in (protected | two_ids) if txid in live and txid not in want}
     for gone in [txid for txid in list(boosted) if txid not in live or txid not in lift]:
         boosted.discard(gone)
-    boost_whitelist(node, lift, boosted, dry_run, WHITELIST_DELTA)
+    boost_whitelist(node, lift, boosted, dry_run, whitelist_delta)
     for txid, reason in want.items():
         if txid in marked:
             marked[txid] = reason
@@ -529,6 +530,7 @@ def main() -> int:
     once = cfg.get("once") is True
     listen = str(cfg.get("listen") or "")
     status_path = cfg_path.parent / "sidecar.status.json"
+    directory = None
     if listen and not once:
         catalog = 1
         catalog_shapes: list = []
@@ -652,9 +654,18 @@ def main() -> int:
                 flags = load_json(rules_path)
                 stamp = now
                 print("rules loaded", flush=True)
+            local = board.read_local()
+            if directory is not None:
+                host = str(local.get("publish_host") or "")
+                port = local.get("publish_port") or ""
+                announce = f"{host}:{port}" if host and port else str(cfg.get("announce") or "")
+                directory.set_identity(str(local.get("name") or cfg.get("name") or ""), announce)
             found_packages: list[tuple[str, str]] = []
             found_paid: list[tuple[str, str]] = []
-            counts = scan(node, flags, delta, dry_run, decided, marked, whitelist_ids, one_ids, two_ids, rescan, found_packages, found_paid, boosted)
+            counts = scan(
+                node, flags, delta, dry_run, decided, marked, whitelist_ids, one_ids, two_ids,
+                rescan, found_packages, found_paid, boosted, int(local.get("whitelist_delta_sats") or 0),
+            )
             if listen:
                 for raw_hex, txid in found_packages:
                     try:

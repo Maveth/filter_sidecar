@@ -36,8 +36,13 @@ class HelloTest(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             directory = Directory("local", "127.0.0.1:28335", 1, Path(tmp) / "peers.json", announce="203.0.113.9:8337")
             directory.peers["34.72.58.183:8337"] = {"address": "34.72.58.183:8337", "accept": True}
-            self.assertEqual(directory.known_addresses(), ["203.0.113.9:8337", "34.72.58.183:8337"])
-            self.assertEqual(directory._hello()["known"], ["203.0.113.9:8337", "34.72.58.183:8337"])
+            directory.set_identity("harbor", "198.51.100.8:9337")
+            self.assertEqual(directory._hello()["name"], "harbor")
+            self.assertEqual(directory._hello()["listen"], "198.51.100.8:9337")
+            directory.set_identity("harbor", "0.0.0.0:9337")
+            self.assertEqual(directory._hello()["listen"], "198.51.100.8:9337")
+            self.assertEqual(directory.known_addresses(), ["198.51.100.8:9337", "34.72.58.183:8337"])
+            self.assertEqual(directory._hello()["known"], ["198.51.100.8:9337", "34.72.58.183:8337"])
 
     def test_matching_proto_is_accepted_and_a_mismatch_is_refused(self):
         with TemporaryDirectory() as tmp:

@@ -294,18 +294,31 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, shape_pull_request(str(incoming.get("id") or "")))
                 return
             if self.path == "/api/local":
-                current = board.read_local()
+                path = board._base() / "sift-local.json"
+                try:
+                    current = json.loads(path.read_text())
+                except (OSError, json.JSONDecodeError):
+                    current = {}
+                if not isinstance(current, dict):
+                    current = {}
                 for key in ("search_port_plus_2", "accept_packages", "import_received"):
                     if isinstance(incoming.get(key), bool):
                         current[key] = incoming[key]
                 if "port_offset" in incoming:
                     from hello import port_offset
                     current["port_offset"] = port_offset(incoming.get("port_offset"))
+                if "whitelist_delta_sats" in incoming:
+                    current["whitelist_delta_sats"] = board.clean_whitelist_delta(incoming.get("whitelist_delta_sats"))
+                if "name" in incoming:
+                    current["name"] = board.clean_name(incoming.get("name"))
+                if "publish_host" in incoming or "publish_port" in incoming:
+                    host, number = board.clean_published(incoming.get("publish_host"), incoming.get("publish_port"))
+                    current["publish_host"] = host
+                    current["publish_port"] = number
                 if incoming.get("search_now") is True:
                     current["search_now"] = True
-                path = board._base() / "sift-local.json"
                 self._write_rules_to(path, current)
-                self._json(200, current)
+                self._json(200, board.read_local())
                 return
             if self.path == "/api/peers":
                 op = str(incoming.get("op") or "")

@@ -40,7 +40,7 @@ Local rules always win. The catalog is `shapes.json`, and the marker loads that 
 
 ## Whitelist
 
-A whitelist entry is a shape, plus an optional list of txids. It only saves a transaction Knots has already accepted. The sidecar leaves it unmarked and adds 1000 sats of mining priority to that transaction and its descendants. Knots refuses priority on a dust output, so a zero-value anchor parent gets that 1000 on its descendants instead. The priority stays on this node. It is not relayed.
+A whitelist entry is a shape, plus an optional list of txids. It only saves a transaction Knots has already accepted. The sidecar leaves it unmarked and adds mining priority to that transaction and its descendants. The default is 1000 sats and Settings can change it. Knots refuses priority on a dust output, so a zero-value anchor parent gets that amount on its descendants instead. The priority stays on this node. It is not relayed.
 
 A whitelist entry Knots currently rejects stays rejected on the public peer port. Letting that one shape in does not mean lowering a Knots relay-and-mine setting. The sidecar inserts the signed transaction with `sendrawtransaction` and `ignore_rejects`. The node stays strict, so it does not start relaying every transaction a wider policy would accept.
 

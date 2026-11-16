@@ -1098,20 +1098,94 @@ def _base() -> Path:
     return Path(__file__).resolve().parent
 
 
+def published_from_config() -> dict:
+    """Name and address from config.json, for the settings form before a save."""
+    out = {"name": "", "publish_host": "", "publish_port": ""}
+    try:
+        cfg = json.loads((_base() / "config.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return out
+    if not isinstance(cfg, dict):
+        return out
+    if isinstance(cfg.get("name"), str):
+        out["name"] = cfg["name"].strip()[:40]
+    from hello import shareable_address, split_addr
+    announce = str(cfg.get("announce") or "")
+    parsed = split_addr(announce)
+    if parsed and shareable_address(announce):
+        out["publish_host"] = parsed[0]
+        out["publish_port"] = parsed[1]
+    return out
+
+
+def clean_name(value) -> str:
+    text = str(value or "").strip()
+    if not text or len(text) > 40 or any(ch.isspace() for ch in text):
+        raise ValueError("Name must be 1 to 40 characters with no spaces")
+    return text
+
+
+def clean_published(host, port) -> tuple[str, int]:
+    from hello import shareable_address
+    text = str(host or "").strip()
+    try:
+        number = int(port)
+    except (TypeError, ValueError):
+        raise ValueError("Published port must be a number")
+    if not text or number < 1 or number > 65535:
+        raise ValueError("Published address needs a host and a port from 1 to 65535")
+    address = f"{text}:{number}"
+    if not shareable_address(address):
+        raise ValueError("Published address cannot be 0.0.0.0 or a loopback address. Other sidecars cannot dial those.")
+    return text, number
+
+
+def clean_whitelist_delta(value) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        raise ValueError("Whitelist priority must be a number of sats")
+    if number < 0 or number > 1_000_000_000:
+        raise ValueError("Whitelist priority must be from 0 to 1000000000 sats")
+    return number
+
+
 def read_local() -> dict:
-    defaults = {"search_port_plus_2": True, "accept_packages": False, "import_received": False, "port_offset": 4}
+    defaults = {
+        "search_port_plus_2": True,
+        "accept_packages": False,
+        "import_received": False,
+        "port_offset": 4,
+        "whitelist_delta_sats": 1000,
+    }
+    defaults.update(published_from_config())
     path = _base() / "sift-local.json"
     try:
         loaded = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError):
-        return dict(defaults)
+        loaded = {}
     if not isinstance(loaded, dict):
-        return dict(defaults)
+        loaded = {}
     for key in ("search_port_plus_2", "accept_packages", "import_received"):
         if isinstance(loaded.get(key), bool):
             defaults[key] = loaded[key]
     from hello import port_offset
     defaults["port_offset"] = port_offset(loaded.get("port_offset", 4))
+    if "whitelist_delta_sats" in loaded:
+        try:
+            defaults["whitelist_delta_sats"] = clean_whitelist_delta(loaded.get("whitelist_delta_sats"))
+        except ValueError:
+            pass
+    if isinstance(loaded.get("name"), str) and loaded["name"].strip():
+        defaults["name"] = loaded["name"].strip()[:40]
+    if loaded.get("publish_host") and loaded.get("publish_port"):
+        try:
+            host, number = clean_published(loaded.get("publish_host"), loaded.get("publish_port"))
+        except ValueError:
+            pass
+        else:
+            defaults["publish_host"] = host
+            defaults["publish_port"] = number
     return defaults
 
 
