@@ -467,7 +467,7 @@ def _sat_vb(value) -> float | None:
     return float(value)
 
 
-def spam_cards(shapes: list[dict], rules: dict, node: dict, whitelist_titles: dict[str, str] | None = None) -> list[dict]:
+def spam_cards(shapes: list[dict], rules: dict, node: dict, whitelist_titles: dict[str, str] | None = None, whitelist_ids: dict[str, str] | None = None) -> list[dict]:
     rows = [
         shape_row(shape, rules)
         for shape in shapes
@@ -484,17 +484,42 @@ def spam_cards(shapes: list[dict], rules: dict, node: dict, whitelist_titles: di
             titles.setdefault(row["rule"], []).append(row["title"])
     faced = []
     for n, row in enumerate(rows, start=1):
-        faced.append(_face(row, n, rules, node, titles, whitelist_titles or {}))
+        faced.append(_face(row, n, rules, node, titles, whitelist_titles or {}, whitelist_ids or {}))
     return faced
 
 
-def whitelist_cards(shapes: list[dict], rules: dict) -> tuple[list[dict], dict[str, str]]:
+def _spam_by_slug(shapes: list[dict]) -> dict[str, dict]:
+    found = {}
+    for shape in shapes:
+        if shape.get("kind") != "spam":
+            continue
+        slug = shape.get("slug") or shape["id"]
+        found[slug] = {"id": slug, "title": shape.get("title") or slug, "shape": shape["id"]}
+    return found
+
+
+def _overrides_for(slug: str, spam: dict[str, dict]) -> list[dict]:
+    """Spam rows this whitelist can lift, in catalog order."""
+    rows = []
+    for spam_slug, whites in EXEMPTS.items():
+        if slug not in whites:
+            continue
+        rows.append(spam.get(spam_slug) or {"id": spam_slug, "title": spam_slug, "shape": ""})
+    return rows
+
+
+def whitelist_cards(shapes: list[dict], rules: dict) -> tuple[list[dict], dict[str, str], dict[str, str]]:
     """Same row shape as spam. A rule can be turned on. Test counts what it puts back."""
     rows = [shape_row(shape, rules) for shape in shapes if shape.get("kind") == "whitelist"]
+    spam = _spam_by_slug(shapes)
     titles = {}
+    shape_ids = {}
     for row in rows:
         titles[row["id"]] = row["title"]
-        titles[row.get("slug") or row["id"]] = row["title"]
+        slug = row.get("slug") or row["id"]
+        titles[slug] = row["title"]
+        shape_ids[row["id"]] = row["id"]
+        shape_ids[slug] = row["id"]
     faced = []
     for n, row in enumerate(rows, start=1):
         label, url = source_of(row.get("from") or "")
@@ -507,7 +532,7 @@ def whitelist_cards(shapes: list[dict], rules: dict) -> tuple[list[dict], dict[s
             "also": [],
             "source_label": label,
             "source_url": url,
-            "exempt": [],
+            "exempt": _overrides_for(row.get("slug") or row["id"], spam),
             "control": "bool" if key else "none",
             "active": rule_is_on(rules, key) if key else False,
             "test": bool(key),
@@ -524,7 +549,7 @@ def whitelist_cards(shapes: list[dict], rules: dict) -> tuple[list[dict], dict[s
             ],
         })
         faced.append(item)
-    return faced, titles
+    return faced, titles, shape_ids
 
 
 def _min_fee_row(rules: dict) -> dict:
@@ -548,7 +573,7 @@ def _min_fee_row(rules: dict) -> dict:
     }
 
 
-def _face(row: dict, n: int, rules: dict, node: dict, titles: dict[str, list[str]], whitelist_titles: dict[str, str]) -> dict:
+def _face(row: dict, n: int, rules: dict, node: dict, titles: dict[str, list[str]], whitelist_titles: dict[str, str], whitelist_ids: dict[str, str] | None = None) -> dict:
     label, url = source_of(row.get("from") or "")
     others = [title for title in titles.get(row.get("rule") or "", []) if title != row.get("title")]
     faced = dict(row)
@@ -567,8 +592,9 @@ def _face(row: dict, n: int, rules: dict, node: dict, titles: dict[str, list[str
     faced["node_sat_vb"] = node_vb
     faced["default_sat_vb"] = default_vb
     faced["below_default"] = node_vb is not None and default_vb is not None and node_vb < default_vb
+    ids = whitelist_ids or {}
     faced["exempt"] = [
-        {"id": wid, "title": whitelist_titles.get(wid, wid)}
+        {"id": wid, "title": whitelist_titles.get(wid, wid), "shape": ids.get(wid, "")}
         for wid in EXEMPTS.get(row.get("slug") or row["id"], ())
     ]
     faced["options"] = _options(row["id"], rules)
@@ -1106,7 +1132,7 @@ def load_inbox(log_path: Path) -> dict:
 def view(shapes_path: Path, rules: dict, log_path: Path, sent_path: Path) -> dict:
     node = load_node_policy(log_path)
     catalog = load_shapes(shapes_path)
-    whitelist, whitelist_titles = whitelist_cards(catalog, rules)
+    whitelist, whitelist_titles, whitelist_ids = whitelist_cards(catalog, rules)
     rows = [shape_row(shape, rules) for shape in catalog]
     datacarrier_off = rules.get("datacarrier") is False
     self_row, peers = load_peers(log_path)
@@ -1115,7 +1141,7 @@ def view(shapes_path: Path, rules: dict, log_path: Path, sent_path: Path) -> dic
     stopped = stopped_from_log(log_path)
     counts = load_counts(log_path, stopped["total"], peers)
     return {
-        "spam": spam_cards(catalog, rules, node, whitelist_titles),
+        "spam": spam_cards(catalog, rules, node, whitelist_titles, whitelist_ids),
         "whitelist": whitelist,
         "watch": [row for row in rows if row["kind"] == "watch"],
         "datacarrier_off": datacarrier_off,

@@ -236,6 +236,21 @@ def priority_top_up(have: int, want: int) -> int:
     return want - have
 
 
+def whitelist_priority_add(have: int, want: int, spam_delta: int) -> int:
+    """Sats to add so a whitelist ends at want.
+
+    A spam mark is a large negative, and the same mark can have been added more
+    than once. The whole of that negative is removed, then the priority lands on
+    want. A transaction with no spam mark only needs the top-up. The node's small
+    dust penalty is not this mark, and it is not part of the priority delta.
+    """
+    if want <= 0:
+        return 0
+    if spam_delta < 0 and have <= spam_delta // 2:
+        return -have + want
+    return priority_top_up(have, want)
+
+
 def _priority_add(node: Node, txid: str, add: int) -> str:
     """ok, or dust when Knots refuses priority on a dust output."""
     try:
@@ -255,20 +270,23 @@ def _priority_add(node: Node, txid: str, add: int) -> str:
     return "ok"
 
 
-def boost_whitelist(node: Node, txids: set[str], boosted: set[str], dry_run: bool, want: int) -> None:
+def boost_whitelist(node: Node, txids: set[str], boosted: set[str], dry_run: bool, want: int, spam_delta: int = DEFAULT_DELTA) -> set[str]:
     """Add mining priority to whitelist transactions. The priority is local and is not relayed.
 
     Knots refuses priority on a transaction with a dust output, such as the
     zero-value anchor. The same amount is then added to its descendants.
+    Returns the transactions whose spam mark was reversed, so a later unmark
+    does not add that amount a second time.
     """
+    cleared: set[str] = set()
     pending = {txid for txid in txids if txid not in boosted}
     if want <= 0 or not pending:
-        return
+        return cleared
     try:
         current = node.call("getprioritisedtransactions", []) or {}
     except Exception as exc:
         print(f"whitelist priority skipped: {exc}", flush=True)
-        return
+        return cleared
     if not isinstance(current, dict):
         current = {}
 
@@ -279,12 +297,17 @@ def boost_whitelist(node: Node, txids: set[str], boosted: set[str], dry_run: boo
     def give(txid: str) -> None:
         if txid in boosted:
             return
-        add = priority_top_up(have_of(txid), want)
+        have = have_of(txid)
+        add = whitelist_priority_add(have, want, spam_delta)
+        clears = spam_delta < 0 and have <= spam_delta // 2 and add != 0
         if add == 0:
             boosted.add(txid)
             return
+        note = f" reversed {have}" if clears else ""
         if dry_run:
-            print(f"would whitelist {txid} delta=+{add}", flush=True)
+            print(f"would whitelist {txid} delta=+{add}{note}", flush=True)
+            if clears:
+                cleared.add(txid)
             boosted.add(txid)
             return
         if _priority_add(node, txid, add) == "dust":
@@ -296,7 +319,9 @@ def boost_whitelist(node: Node, txids: set[str], boosted: set[str], dry_run: boo
             for kid in kids:
                 give(str(kid))
         else:
-            print(f"whitelist {txid} delta=+{add}", flush=True)
+            if clears:
+                cleared.add(txid)
+            print(f"whitelist {txid} delta=+{add}{note}", flush=True)
         boosted.add(txid)
 
     for txid in sorted(pending):
@@ -304,6 +329,7 @@ def boost_whitelist(node: Node, txids: set[str], boosted: set[str], dry_run: boo
             give(txid)
         except Exception as exc:
             print(f"whitelist {txid} skipped: {exc}", flush=True)
+    return cleared
 
 
 def wanted_marks(reasons: dict[str, str | None], children: dict[str, list[str]]) -> dict[str, str]:
@@ -490,7 +516,9 @@ def scan(
     lift = {txid for txid in (protected | one_ids | two_ids | paid_ids) if txid in live and txid not in want}
     for gone in [txid for txid in list(boosted) if txid not in live or txid not in lift]:
         boosted.discard(gone)
-    boost_whitelist(node, lift, boosted, dry_run, whitelist_delta)
+    cleared = boost_whitelist(node, lift, boosted, dry_run, whitelist_delta, delta)
+    for txid in cleared:
+        marked.pop(txid, None)
     for txid, reason in want.items():
         if txid in marked:
             marked[txid] = reason

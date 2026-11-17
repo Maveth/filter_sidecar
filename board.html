@@ -18,7 +18,7 @@
   h1 .mark { color: #9ad; flex: none; }
   header .tag { margin: 0; color: #9ab; font-size: 1rem; font-weight: normal; }
   a { color: #9ad; }
-  main { padding: 0.8rem 1.2rem 2.5rem; max-width: 76rem; }
+  main { padding: 0.8rem 1.2rem 2.5rem; }
   .note { color: #aaa; }
   .card { border: 1px solid #2c3238; border-radius: 8px; padding: 0.7rem 0.85rem; margin: 0.55rem 0; }
   .card h2 { font-size: 1rem; margin: 0 0 0.25rem; }
@@ -40,11 +40,13 @@
   .count .lbl { color: #9ab; font-size: 0.82rem; }
   .count .bar { color: #666; padding: 0 0.35rem; }
   .count .bad { color: #e88; }
-  .home { max-width: 44rem; margin-top: 0.2rem; }
+  .home { margin-top: 0.2rem; }
   .home h2 { font-size: 1.15rem; margin: 1.1rem 0 0.35rem; }
   .home p, .home li { margin: 0.4rem 0; }
   .home ol { margin: 0.2rem 0 0.6rem; padding-left: 1.2rem; }
-  .shape { display: grid; grid-template-columns: 8.2rem minmax(7rem, 11rem) minmax(0, 1fr) 4.6rem; gap: 0.4rem 0.8rem; align-items: start; }
+  .shape { display: grid; grid-template-columns: 8.2rem 14rem minmax(0, 1fr) 13rem 4.6rem; gap: 0.4rem 0.8rem; align-items: start; }
+  #columns { margin: 0 1.2rem 0.15rem; padding: 0.4rem 0.85rem; color: #9ab; font-size: 0.82rem; }
+  #columns strong { font-weight: 600; color: #cde; }
   .shape .actions { display: flex; flex-direction: column; align-items: stretch; gap: 0.3rem; }
   .shape .act-row { display: flex; gap: 0.3rem; align-items: center; }
   .shape .id { color: #9ab; font-family: ui-monospace, monospace; }
@@ -58,6 +60,9 @@
   .shape .dial { display: flex; align-items: center; gap: 0.45rem; }
   .shape .dial input { flex: 1; }
   .shape pre { margin: 0.3rem 0 0; max-height: 7.5rem; }
+  .shape .lift { font-size: 0.82rem; }
+  .shape .lift .lbl { color: #9ab; font-size: 0.78rem; }
+  .shape .lift div + div { margin-top: 0.2rem; }
   .shape .src { text-align: right; font-size: 0.82rem; }
   .pop { border: 0; border-radius: 10px; background: #161b20; color: #e8e8e8; padding: 1rem; max-width: 36rem; }
   .pop::backdrop { background: #000a; }
@@ -76,6 +81,13 @@
 <div class="sticky-counts">
   <div id="counts" class="counts"></div>
   <div id="counts2" class="counts"></div>
+  <div id="columns" class="card shape" hidden>
+    <div><strong>switches</strong></div>
+    <div><strong>number</strong></div>
+    <div><strong>description</strong></div>
+    <div><strong>exemption</strong></div>
+    <div><strong>source</strong></div>
+  </div>
 </div>
 </div>
 <main>
@@ -163,6 +175,7 @@ function openTab(tab) {
   for (const name of sections) {
     document.getElementById(name).hidden = name !== tab;
   }
+  document.getElementById("columns").hidden = tab !== "spam" && tab !== "whitelist";
   for (const card of document.querySelectorAll(".count")) {
     card.classList.toggle("on", card.dataset.tab === tab);
   }
@@ -205,6 +218,7 @@ document.addEventListener("click", async (event) => {
 
 document.getElementById("gear").addEventListener("click", async () => {
   for (const name of sections) document.getElementById(name).hidden = true;
+  document.getElementById("columns").hidden = true;
   document.getElementById("settings").hidden = false;
   document.getElementById("gear").classList.add("on");
   const local = await fetch("/api/local").then((response) => response.json());
@@ -628,13 +642,13 @@ function shapeCards(rows) {
         <div class="id">${esc(row.id)}</div>
         <strong>${esc(row.title)}</strong>
         ${also}
-        ${(row.exempt || []).length ? `<p class="meta">Whitelist ${esc(row.exempt.map((item) => item.title).join(", "))}</p>` : ""}
         ${row.transfer === false ? `<p class="note">Not sent to peers.</p>` : ""}
       </div>
       <div>
         ${confLines(row)}${raiseBox(row)}${sliderBox(row)}
         <pre>${esc(JSON.stringify(row.schema))}</pre>
       </div>
+      <div class="lift">${(row.exempt || []).length ? `<div class="lbl">${row.kind === "whitelist" ? "Overrides" : "Overridden by"}</div>${row.exempt.map((item) => `<div>${item.shape ? `${esc(item.shape)} ` : ""}${esc(item.title)}</div>`).join("")}` : ""}</div>
       <div class="src">${source}</div>
     </article>`;
   }).join("");

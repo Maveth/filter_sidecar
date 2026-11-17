@@ -364,6 +364,48 @@ class RulesTest(unittest.TestCase):
         self.assertNotIn([mixed_id, 0, 1000], boosts)
         self.assertIn([spam_id, 0, sidecar.DEFAULT_DELTA], boosts)
 
+    def test_a_whitelist_reverses_an_existing_spam_mark(self):
+        clean = _pay_many(1, value=10000)
+        clean_id = "aa" * 32
+        base = 0.00000017
+        marked_fee = base + sidecar.DEFAULT_DELTA / 100_000_000
+        entry = {
+            "fees": {"base": base, "modified": marked_fee, "descendant": 0.00000500},
+            "vsize": 155,
+            "weight": 620,
+            "sigops": 1,
+            "descendantcount": 2,
+            "descendantsize": 200,
+        }
+        calls = []
+
+        class Node:
+            def call(self, method, params):
+                calls.append((method, params))
+                if method == "getrawmempool":
+                    return [clean_id]
+                if method == "getmempoolentry":
+                    return dict(entry)
+                if method == "getrawtransaction":
+                    return clean.hex()
+                if method == "getmempooldescendants":
+                    return []
+                if method == "getprioritisedtransactions":
+                    return {clean_id: {"fee_delta": sidecar.DEFAULT_DELTA}}
+                return None
+
+        flags = {
+            "whitelist_package_paid": True,
+            "package_paid_sat_vb": 1,
+            "minfee_sift": False,
+        }
+        sidecar.scan(
+            Node(), flags, sidecar.DEFAULT_DELTA, False, {}, {}, set(), set(), set(), True,
+            None, [], None, 1000,
+        )
+        boosts = [params for method, params in calls if method == "prioritisetransaction" and params[0] == clean_id]
+        self.assertEqual(boosts, [[clean_id, 0, -sidecar.DEFAULT_DELTA + 1000]])
+
     def test_a_received_ark_set_is_inserted_parent_then_child(self):
         class Fake:
             def __init__(self):
@@ -436,6 +478,11 @@ class RulesTest(unittest.TestCase):
         self.assertEqual(sidecar.priority_top_up(240, 1000), 760)
         self.assertEqual(sidecar.priority_top_up(1000, 1000), 0)
         self.assertEqual(sidecar.priority_top_up(1500, 1000), 0)
+        spam = sidecar.DEFAULT_DELTA
+        self.assertEqual(sidecar.whitelist_priority_add(0, 1000, spam), 1000)
+        self.assertEqual(sidecar.whitelist_priority_add(-240, 1000, spam), 1240)
+        self.assertEqual(sidecar.whitelist_priority_add(spam, 1000, spam), -spam + 1000)
+        self.assertEqual(sidecar.whitelist_priority_add(spam * 4, 1000, spam), -spam * 4 + 1000)
 
     def test_a_child_is_marked_with_its_parent_and_unmarked_with_it(self):
         want = sidecar.wanted_marks(

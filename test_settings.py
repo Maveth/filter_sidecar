@@ -136,10 +136,17 @@ class ShapeCardTest(unittest.TestCase):
         self.assertEqual([slider["value"] for slider in rows["dust-p2wsh-run"]["sliders"]], [3, 546])
         self.assertEqual([item["id"] for item in rows["dust-output"]["exempt"]], ["ark-exit", "consolidation"])
         self.assertEqual([item["id"] for item in rows["min-fee"]["exempt"]], ["ark-exit", "package-paid"])
+        listed = board.whitelist_cards(shapes, rules)
+        shape_ids = listed[2]
+        faced = {row.get("slug") or row["id"]: row for row in board.spam_cards(shapes, rules, node, listed[1], shape_ids)}
+        self.assertEqual([(item["shape"], item["title"]) for item in faced["min-fee"]["exempt"]], [("WLS-1", "Ark exit"), ("WLS-2", "Package-paid")])
         self.assertEqual([item["id"] for item in rows["runestone"]["exempt"]], ["empty-runestone"])
         listed = board.whitelist_cards(shapes, rules)[0]
         ark = next(row for row in listed if row.get("slug") == "ark-exit")
         self.assertEqual(ark["id"], "WLS-1")
+        self.assertEqual([(item["shape"], item["title"]) for item in ark["exempt"]], [("SFS-27", "Dust output"), ("SFS-29", "Dust spray"), ("SFS-28", "Minimum fee")])
+        paid = next(row for row in listed if row.get("slug") == "package-paid")
+        self.assertEqual([(item["shape"], item["title"]) for item in paid["exempt"]], [("SFS-28", "Minimum fee")])
         self.assertTrue(ark["active"])
         self.assertTrue(ark["test"])
         stone = next(row for row in listed if row.get("slug") == "empty-runestone")
