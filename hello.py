@@ -211,9 +211,32 @@ class Directory:
         self._port = port
 
     def start(self) -> None:
+        self._load_saved_peers()
         self.publish()
         thread = threading.Thread(target=self._listen, name="sidecar-hello", daemon=True)
         thread.start()
+
+    def _load_saved_peers(self) -> None:
+        """Keep each peer's in and out across a restart. A new hello still adds to that set."""
+        try:
+            loaded = json.loads(self.path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return
+        rows = loaded.get("peers") if isinstance(loaded, dict) else None
+        if not isinstance(rows, list):
+            return
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            listen = str(row.get("address") or "")
+            if not listen or listen == self.listen:
+                continue
+            directions = [str(item) for item in (row.get("directions") or []) if item]
+            if not directions and row.get("direction"):
+                directions = [str(row["direction"])]
+            kept = dict(row)
+            kept["directions"] = sorted(set(directions))
+            self.peers[listen] = kept
 
     def stop(self) -> None:
         self._stop.set()

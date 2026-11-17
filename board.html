@@ -676,13 +676,13 @@ function show(board) {
   const blocked = counts.blocked == null ? "—" : esc(counts.blocked);
   document.getElementById("counts").innerHTML = [
     countCard("TX in mempool", `${tx}<span class="bar">|</span><span class="bad">🚫 ${blocked}</span>`, "total | blocked", "home"),
-    countCard("Recently blocked", counts.total_blocked == null ? "—" : esc(counts.total_blocked), "", "stopped"),
+    countCard("Spam txs recently blocked", counts.total_blocked == null ? "—" : esc(counts.total_blocked), "", "stopped"),
     countCard("peer in/out", `${esc(peersIn)}<span class="bar">|</span>${esc(peersOut)}`, "in | out", "peers"),
   ].join("");
   document.getElementById("counts2").innerHTML = [
     countCard("Spam shapes", `${esc(catalogSpam.length)}<span class="bar">|</span>${esc(onNode)}<span class="bar">|</span>${esc(onSide)}`, "shapes | node | sift", "spam"),
     countCard("Whitelist", `${esc((board.whitelist || []).length)}<span class="bar">|</span>0<span class="bar">|</span>${esc(whitelistOn)}`, "shapes | node | sift", "whitelist"),
-    countCard("Packages", `${esc(pkgIn)}<span class="bar">|</span>${esc(pkgOut)}`, "in | out", "sent"),
+    countCard("Whitelist packages relayed", `${esc(pkgIn)}<span class="bar">|</span>${esc(pkgOut)}`, "in | out", "sent"),
   ].join("");
   openTab(openName);
   const received = (board.received && board.received.peers || []).map((peer) =>

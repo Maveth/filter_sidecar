@@ -123,6 +123,26 @@ class HelloTest(unittest.TestCase):
             right.stop()
 
 
+class SavedPeerTest(unittest.TestCase):
+    def test_a_restart_keeps_in_and_out_on_the_same_peer(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "peers.json"
+            path.write_text(json.dumps({
+                "peers": [{
+                    "address": "34.72.58.183:8337",
+                    "direction": "out",
+                    "directions": ["in", "out"],
+                    "name": "bet",
+                    "accept": True,
+                }],
+            }))
+            directory = Directory("local", "127.0.0.1:1", 1, path)
+            directory._load_saved_peers()
+            directory.publish()
+            saved = json.loads(path.read_text())["peers"][0]
+            self.assertEqual(saved["directions"], ["in", "out"])
+
+
 class SendPackageTest(unittest.TestCase):
     def test_an_off_whitelist_is_not_sent_and_a_received_package_is_not_forwarded(self):
         with TemporaryDirectory() as tmp:
