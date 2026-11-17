@@ -173,7 +173,7 @@ class ShapeCardTest(unittest.TestCase):
         self.assertIn("rejectparasites=1", lines)
         self.assertIn("dustrelayfee=0.00003000", lines)
         self.assertFalse(any("fanout" in line for line in lines))
-        self.assertFalse(any("unverified" in line for line in __import__("settings").bitcoin_conf_lines({"rejectunverifiedkeys": True})))
+        self.assertFalse(any("unverified" in line for line in __import__("settings").bitcoin_conf_lines({"sift_unverified_key": True})))
         self.assertEqual(board._silence({"dust_sift": True}, "dust")["dust_sift"], False)
         self.assertIsNone(board._silence({}, "not-a-reason"))
 

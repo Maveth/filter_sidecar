@@ -280,7 +280,7 @@ class RulesTest(unittest.TestCase):
     def test_an_unverified_key_is_marked_with_the_fake_multisig_check(self):
         key = b"\x21" + bytes([2]) + b"\x11" * 32
         guard = bytes.fromhex("749264") + key + bytes.fromhex("ac68") + key + bytes.fromhex("51ae")
-        flags = {"rejectunverifiedkeys": True}
+        flags = {"sift_unverified_key": True}
         self.assertEqual(tx_reject_reason(_witness_script_tx(guard, b"\x00\x14" + b"\x22" * 20), flags), "unverifiedkey")
         dropped = key + bytes.fromhex("ac75")
         self.assertEqual(

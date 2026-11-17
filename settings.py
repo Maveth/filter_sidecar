@@ -57,10 +57,10 @@ RULE_FIELDS = (
         "help": "Sat/vB marked below this rate. Empty adds no sidecar fee floor.",
     },
     {
-        "key": "rejectunverifiedkeys",
+        "key": "sift_unverified_key",
         "type": "bool",
         "label": "Unverified key",
-        "help": "Sift-only. Mark a key beside CHECKSIG that this spend does not prove. Knots does not have this check. Off leaves it unmarked.",
+        "help": "Sift filter. Off until turned on here. There is no node option for this.",
     },
     {
         "key": "rejectfanout",
