@@ -64,7 +64,8 @@ class HelloTest(unittest.TestCase):
             left.inbox_path = root / "local.inbox.json"
             right.inbox_path = root / "seed.inbox.json"
             (root / "sift-local.json").write_text('{"accept_packages": true}\n')
-            digest = right.add_package("WLS-1", "ab", "cd")
+            right.set_open_shapes({"WLS-1"})
+            digest = right.add_package("WLS-1", "ab", "cd", local=True)
             left.catalog_shapes = [{"id": "cat21", "kind": "spam", "carry": "definition", "title": "CAT-21", "schema": {"locktime": 21}}]
             right.catalog_shapes = [
                 {"id": "ark-exit", "kind": "whitelist", "carry": "package", "title": "Ark exit", "schema": {"parent": {"version": 3}}},
@@ -120,6 +121,21 @@ class HelloTest(unittest.TestCase):
             self.assertEqual(reply["reason"], "proto")
             left.stop()
             right.stop()
+
+
+class SendPackageTest(unittest.TestCase):
+    def test_an_off_whitelist_is_not_sent_and_a_received_package_is_not_forwarded(self):
+        with TemporaryDirectory() as tmp:
+            directory = Directory("local", "127.0.0.1:1", 1, Path(tmp) / "peers.json")
+            held = directory.add_package("WLS-2", "aa", "bb", local=True)
+            received = directory.add_package("WLS-1", "cc", "dd")
+            self.assertNotIn(f"pkg:{held}", directory.inv())
+            self.assertEqual(directory.data_for([f"pkg:{held}", f"pkg:{received}"], "bet"), [])
+            directory.set_open_shapes({"WLS-2"})
+            self.assertIn(f"pkg:{held}", directory.inv())
+            self.assertNotIn(f"pkg:{received}", directory.inv())
+            sent = directory.data_for([f"pkg:{held}", f"pkg:{received}"], "bet")
+            self.assertEqual([row["id"] for row in sent], [held])
 
 
 class OfferTest(unittest.TestCase):

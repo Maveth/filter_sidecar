@@ -425,7 +425,7 @@ def scan(
             own_vsize = entry.get("vsize")
             if not isinstance(own_vsize, int) and isinstance(weight, int):
                 own_vsize = (int(weight) + 3) // 4
-            if paid_by_descendant(flags, fee_sat, own_vsize if isinstance(own_vsize, int) else None, package_fee, package_vsize):
+            if flags.get("whitelist_package_paid") is True and paid_by_descendant(flags, fee_sat, own_vsize if isinstance(own_vsize, int) else None, package_fee, package_vsize):
                 paid_packages.append((raw_hex, txid))
             span = whitelist_items(
                 raw, flags, fee=fee_sat,
@@ -667,12 +667,18 @@ def main() -> int:
                 rescan, found_packages, found_paid, boosted, int(local.get("whitelist_delta_sats") or 0),
             )
             if listen:
+                open_shapes = set()
+                if flags.get("whitelist_ark_zero_anchor") is True:
+                    open_shapes.add("WLS-1")
+                if flags.get("whitelist_package_paid") is True:
+                    open_shapes.add("WLS-2")
+                directory.set_open_shapes(open_shapes)
                 for raw_hex, txid in found_packages:
                     try:
                         kids = node.call("getmempooldescendants", [txid, False]) or []
                     except Exception:
                         kids = []
-                    directory.add_package("WLS-1", raw_hex, anchor_child_hex(node, txid, raw_hex, kids))
+                    directory.add_package("WLS-1", raw_hex, anchor_child_hex(node, txid, raw_hex, kids), local=True)
                 raws = {txid: raw_hex for raw_hex, txid in found_paid}
                 links = {}
                 for txid in raws:
@@ -694,7 +700,7 @@ def main() -> int:
                         hexes.append(raw_hex)
                     if len(hexes) < 2:
                         continue
-                    directory.add_package("WLS-2", hexes[0], hexes[1], hexes[2:])
+                    directory.add_package("WLS-2", hexes[0], hexes[1], hexes[2:], local=True)
                 submit_pending(node, directory)
             peers_sent = 0
             if status_path.with_name(status_path.name.replace(".status.json", ".peers.json")).is_file():

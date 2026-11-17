@@ -191,6 +191,8 @@ class Directory:
         self.commit = commit
         self._tried: dict[str, float] = {}
         self.packages: dict[str, dict] = {}
+        self.marked_packages: set[str] = set()
+        self.open_shapes: set[str] = set()
         self.have_ids: set[str] = set()
         self.pending_submit: list[str] = []
         self.submitted: set[str] = set()
@@ -383,7 +385,11 @@ class Directory:
         for address in others:
             threading.Thread(target=self.dial, args=(address, "out"), daemon=True).start()
 
-    def add_package(self, shape_id: str, parent_hex: str, child_hex: str = "", extra: list[str] | tuple[str, ...] = ()) -> str | None:
+    def set_open_shapes(self, shapes: set[str]) -> None:
+        """Whitelist ids whose switch is on. Only those packages are offered."""
+        self.open_shapes = {str(shape) for shape in shapes}
+
+    def add_package(self, shape_id: str, parent_hex: str, child_hex: str = "", extra: list[str] | tuple[str, ...] = (), local: bool = False) -> str | None:
         parent_hex = parent_hex.strip().lower()
         child_hex = child_hex.strip().lower()
         extras = [item.strip().lower() for item in extra]
@@ -402,16 +408,25 @@ class Directory:
                 "extra": extras,
             }
             print(f"package {shape_id} {digest[:12]}", flush=True)
+        if local:
+            self.marked_packages.add(digest)
         self._fill_known_package(digest)
         return digest
+
+    def _sendable(self, digest: str) -> bool:
+        """A package goes out only when this node marked it and that whitelist is on."""
+        package = self.packages.get(digest)
+        if not package or digest not in self.marked_packages:
+            return False
+        return str(package.get("shape") or "") in self.open_shapes
 
     def inv(self) -> list[str]:
         found = []
         for shape in self.catalog_shapes:
             if isinstance(shape, dict) and shape.get("transfer") is not False and shape.get("id"):
                 found.append(str(shape["id"]))
-        found.extend(sorted(self.have_ids))
-        found.extend(f"pkg:{digest}" for digest in self.packages)
+        found.extend(sorted(item for item in self.have_ids if not str(item).startswith("pkg:")))
+        found.extend(f"pkg:{digest}" for digest in self.packages if self._sendable(digest))
         return list(dict.fromkeys(found))
 
     def _accepts_packages(self) -> bool:
@@ -440,10 +455,11 @@ class Directory:
             if not isinstance(item_id, str):
                 continue
             if item_id.startswith("pkg:"):
-                package = self.packages.get(item_id[4:])
-                if package:
+                digest = item_id[4:]
+                package = self.packages.get(digest)
+                if package and self._sendable(digest):
                     items.append(package)
-                    self._note_package("out", item_id[4:], peer)
+                    self._note_package("out", digest, peer)
                 continue
             shape = shapes.get(item_id)
             if shape and shape.get("transfer") is not False:
