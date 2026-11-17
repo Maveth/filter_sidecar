@@ -1130,7 +1130,7 @@ def view(shapes_path: Path, rules: dict, log_path: Path, sent_path: Path) -> dic
         "package_out": package_out,
         "sent": load_package_rows(log_path, "sent") or load_sent(sent_path),
         "received_packages": load_package_rows(log_path, "received"),
-        "sent_note": "Each hash is one package. Sent is the second number: a peer asked for it and this sidecar sent it.",
+        "sent_note": "Every package body that has moved since this list started. It is not the mempool, and a row stays after the transactions confirm. Sent is the second number: a peer asked for that hash and this sidecar handed over the body.",
         "stopped": stopped,
         "counts": counts,
     }
