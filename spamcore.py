@@ -992,7 +992,7 @@ def tx_reject_reason(
                         stack = stack[:-1]
                     tapscript = len(stack) >= 2 and stack[-2] == script and _is_taproot_control_block(stack[-1])
                     satisfaction = stack[:-2] if tapscript else stack[:-1]
-                    if flags.get("rejectfakemultisig") and _unverified_key(script, satisfaction, tapscript):
+                    if flags.get("rejectunverifiedkeys") is True and _unverified_key(script, satisfaction, tapscript):
                         return "unverifiedkey"
                     reason = _script_spam(script, False, flags)
                     if reason == "fakemultisig" and _powpeg_excuses(script, flags):

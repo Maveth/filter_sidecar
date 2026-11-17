@@ -32,7 +32,7 @@ LIVE_RULE = {
     "counterparty": "rejectcounterparty",
     "stamps": "rejectstamps",
     "fake-multisig": "rejectfakemultisig",
-    "unverified-key": "rejectfakemultisig",
+    "unverified-key": "rejectunverifiedkeys",
     "dead-branch": "rejectdeadbranches",
     "bare-envelope": "rejectbareenvelopes",
     "json-token": "rejecttokenmessages",
@@ -131,7 +131,7 @@ PREVIEW = {
     "counterparty": ("token", {"rejectcounterparty": True}),
     "stamps": ("token", {"rejectstamps": True}),
     "fake-multisig": ("fakemultisig", {"rejectfakemultisig": True}),
-    "unverified-key": ("unverifiedkey", {"rejectfakemultisig": True}),
+    "unverified-key": ("unverifiedkey", {"rejectunverifiedkeys": True}),
     "dead-branch": ("deadbranch", {"rejectdeadbranches": True}),
     "bare-envelope": ("bareenvelope", {"rejectbareenvelopes": True}),
     "json-token": ("token", {"rejecttokenmessages": True}),
@@ -784,6 +784,7 @@ def _silence(flags: dict, reason: str) -> dict | None:
         "deadbranch": "rejectdeadbranches",
         "bareenvelope": "rejectbareenvelopes",
         "fakemultisig": "rejectfakemultisig",
+        "unverifiedkey": "rejectunverifiedkeys",
     }.get(reason)
     if flag:
         nxt[flag] = False

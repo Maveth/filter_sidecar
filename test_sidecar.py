@@ -280,7 +280,7 @@ class RulesTest(unittest.TestCase):
     def test_an_unverified_key_is_marked_with_the_fake_multisig_check(self):
         key = b"\x21" + bytes([2]) + b"\x11" * 32
         guard = bytes.fromhex("749264") + key + bytes.fromhex("ac68") + key + bytes.fromhex("51ae")
-        flags = {"rejectfakemultisig": True}
+        flags = {"rejectunverifiedkeys": True}
         self.assertEqual(tx_reject_reason(_witness_script_tx(guard, b"\x00\x14" + b"\x22" * 20), flags), "unverifiedkey")
         dropped = key + bytes.fromhex("ac75")
         self.assertEqual(
@@ -301,6 +301,7 @@ class RulesTest(unittest.TestCase):
         honest = b"\x20" + b"\x01" * 32 + b"\xad" + b"\x20" + b"\x02" * 32 + b"\xac" + b"\x20" + b"\x03" * 32 + b"\xba"
         kept = _witness_script_tx(honest, pay, satisfaction=[b"\x11" * 64, b"\x22" * 64], control=control)
         self.assertIsNone(tx_reject_reason(kept, flags))
+        self.assertIsNone(tx_reject_reason(attacked, {"rejectfakemultisig": True}))
 
     def test_a_low_fee_parent_with_a_paying_child_is_package_paid(self):
         self.assertTrue(spamcore.paid_by_descendant({}, 17, 155, 500, 200))

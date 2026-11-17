@@ -158,6 +158,9 @@ class ShapeCardTest(unittest.TestCase):
         lion = json.loads(Path("shapes/SFS-32.json").read_text())
         self.assertEqual(lion["title"], "Unverified key")
         self.assertEqual(lion["checker"], "unverified-key")
+        live = next(row for row in rows.values() if row["id"] == "SFS-32")
+        self.assertFalse(live["active"])
+        self.assertEqual(live["owner"], "sidecar")
         self.assertIsNone(json.loads(Path("shapes/WLS-11.json").read_text())["checker"])
         paid = next(row for row in listed if row.get("slug") == "package-paid")
         self.assertEqual(paid["id"], "WLS-2")
@@ -170,6 +173,7 @@ class ShapeCardTest(unittest.TestCase):
         self.assertIn("rejectparasites=1", lines)
         self.assertIn("dustrelayfee=0.00003000", lines)
         self.assertFalse(any("fanout" in line for line in lines))
+        self.assertFalse(any("unverified" in line for line in __import__("settings").bitcoin_conf_lines({"rejectunverifiedkeys": True})))
         self.assertEqual(board._silence({"dust_sift": True}, "dust")["dust_sift"], False)
         self.assertIsNone(board._silence({}, "not-a-reason"))
 

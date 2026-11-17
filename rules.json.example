@@ -24,6 +24,7 @@
   "dust_sat_per_kvb": 3000,
   "whitelist_ark_zero_anchor": true,
   "minfeerate_sat_vb": null,
+  "rejectunverifiedkeys": false,
   "rejectfanout": false,
   "fanout_outputs_min": 25,
   "fanout_inputs_max": 2,

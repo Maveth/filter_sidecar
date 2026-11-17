@@ -57,6 +57,12 @@ RULE_FIELDS = (
         "help": "Sat/vB marked below this rate. Empty adds no sidecar fee floor.",
     },
     {
+        "key": "rejectunverifiedkeys",
+        "type": "bool",
+        "label": "Unverified key",
+        "help": "Sift-only. Mark a key beside CHECKSIG that this spend does not prove. Knots does not have this check. Off leaves it unmarked.",
+    },
+    {
         "key": "rejectfanout",
         "type": "bool",
         "label": "Fan-out",
@@ -277,7 +283,7 @@ RULE_FIELDS = (
         "key": "rejectfakemultisig",
         "type": "bool",
         "label": "Reject fake multisig",
-        "help": "Multisig used to carry data, and a key beside CHECKSIG that this spend does not prove.",
+        "help": "Multisig used to carry data.",
     },
     {
         "key": "rejectbareenvelopes",
