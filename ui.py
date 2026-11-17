@@ -6,6 +6,7 @@ file. It does not write bitcoin.conf and it does not restart Knots.
 """
 from __future__ import annotations
 
+import calendar
 import json
 import sys
 import time
@@ -138,14 +139,16 @@ def sync_shapes() -> dict:
     return {"summary": summary, "added": added}
 
 
-_github_main = {"at": 0.0, "sha": ""}
+_github_main = {"at": 0.0, "sha": "", "committed": 0}
+LOADED_COMMIT = hello.running_commit()
+LOADED_AT = hello.commit_time(LOADED_COMMIT)
 
 
-def github_main_commit() -> str:
-    """Short hash of filter_sidecar main. Empty when GitHub does not answer."""
+def github_main() -> tuple[str, int]:
+    """Short hash and commit time of filter_sidecar main. Empty when GitHub does not answer."""
     now = time.time()
     if _github_main["sha"] and now - _github_main["at"] < 300:
-        return _github_main["sha"]
+        return _github_main["sha"], int(_github_main["committed"])
     try:
         req = urllib.request.Request(
             "https://api.github.com/repos/Maveth/filter_sidecar/commits/main",
@@ -154,19 +157,41 @@ def github_main_commit() -> str:
         with urllib.request.urlopen(req, timeout=8) as resp:
             data = json.loads(resp.read().decode())
         sha = str(data.get("sha") or "")
+        stamp = str(((data.get("commit") or {}).get("committer") or {}).get("date") or "")
+        committed = int(calendar.timegm(time.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ"))) if stamp else 0
     except (OSError, ValueError, json.JSONDecodeError):
-        return _github_main["sha"]
-    short = sha[:12]
-    _github_main["sha"] = short
+        return _github_main["sha"], int(_github_main["committed"])
+    _github_main["sha"] = sha[:12]
+    _github_main["committed"] = committed
     _github_main["at"] = now
-    return short
+    return _github_main["sha"], committed
+
+
+def github_main_commit() -> str:
+    return github_main()[0]
+
+
+def update_available(loaded: str, loaded_at: int, remote: str, remote_at: int) -> bool:
+    """True when GitHub main is a newer commit than the one this process loaded."""
+    if not loaded or not remote or not loaded_at or not remote_at:
+        return False
+    if remote.startswith(loaded) or loaded.startswith(remote):
+        return False
+    return remote_at > loaded_at
 
 
 def version_view() -> dict:
-    local = hello.running_commit()
-    remote = github_main_commit()
-    same = bool(local and remote and (remote.startswith(local) or local.startswith(remote)))
-    return {"commit": local, "github": remote, "same": same}
+    remote, remote_at = github_main()
+    newer = update_available(LOADED_COMMIT, LOADED_AT, remote, remote_at)
+    same = bool(LOADED_COMMIT and remote and not newer and (
+        remote.startswith(LOADED_COMMIT) or LOADED_COMMIT.startswith(remote)
+    ))
+    return {
+        "commit": LOADED_COMMIT,
+        "github": remote,
+        "same": same,
+        "update": newer,
+    }
 
 
 def tail_view(log_path: Path) -> dict:

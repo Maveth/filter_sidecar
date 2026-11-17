@@ -45,12 +45,27 @@ def split_addr(addr: str) -> tuple[str, int] | None:
 def running_commit() -> str:
     try:
         return subprocess.check_output(
-            ["git", "-C", str(Path(__file__).resolve().parent), "rev-parse", "--short", "HEAD"],
+            ["git", "-C", str(Path(__file__).resolve().parent), "rev-parse", "--short=12", "HEAD"],
             text=True,
             stderr=subprocess.DEVNULL,
         ).strip()
     except (OSError, subprocess.CalledProcessError):
         return ""
+
+
+def commit_time(commit: str) -> int:
+    """Unix time of a local commit. Zero when git cannot read it."""
+    if not commit:
+        return 0
+    try:
+        raw = subprocess.check_output(
+            ["git", "-C", str(Path(__file__).resolve().parent), "show", "-s", "--format=%ct", commit],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        return int(raw)
+    except (OSError, subprocess.CalledProcessError, ValueError):
+        return 0
 
 
 def _read_varint(raw: bytes, off: int) -> tuple[int, int]:

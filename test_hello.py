@@ -123,6 +123,15 @@ class HelloTest(unittest.TestCase):
             right.stop()
 
 
+class UpdateAvailableTest(unittest.TestCase):
+    def test_an_older_loaded_commit_offers_an_update(self):
+        import ui
+        self.assertTrue(ui.update_available("aaa111", 100, "bbb222", 200))
+        self.assertFalse(ui.update_available("aaa111", 200, "bbb222", 100))
+        self.assertFalse(ui.update_available("aaa111ccc", 100, "aaa111", 200))
+        self.assertFalse(ui.update_available("", 100, "bbb222", 200))
+
+
 class SavedPeerTest(unittest.TestCase):
     def test_a_restart_keeps_in_and_out_on_the_same_peer(self):
         with TemporaryDirectory() as tmp:

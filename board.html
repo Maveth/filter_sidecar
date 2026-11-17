@@ -753,12 +753,12 @@ function show(board) {
 function showVersion(info) {
   const el = document.getElementById("ver");
   if (!el || !info || !info.commit) return;
-  el.textContent = info.github && info.same === false
-    ? `${info.commit} · GitHub main is ${info.github}`
+  el.textContent = info.update
+    ? `${info.commit} · update available`
     : info.commit;
-  el.title = info.same
-    ? "This copy matches GitHub main."
-    : "This copy and GitHub main differ. Start9, a custom compile, and a Linux checkout each update their own way.";
+  el.title = info.update
+    ? `GitHub main is ${info.github}. Restart this sidecar after you pull to load it.`
+    : "This copy matches GitHub main.";
 }
 
 fetch("/api/version").then((response) => response.json()).then(showVersion).catch(() => {});
