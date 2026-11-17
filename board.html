@@ -40,8 +40,10 @@
   .count .lbl { color: #9ab; font-size: 0.82rem; }
   .count .bar { color: #666; padding: 0 0.35rem; }
   .count .bad { color: #e88; }
-  .home { max-width: 36rem; margin-top: 0.2rem; }
-  .home p { margin: 0.45rem 0; }
+  .home { max-width: 44rem; margin-top: 0.2rem; }
+  .home h2 { font-size: 1.15rem; margin: 1.1rem 0 0.35rem; }
+  .home p, .home li { margin: 0.4rem 0; }
+  .home ol { margin: 0.2rem 0 0.6rem; padding-left: 1.2rem; }
   .shape { display: grid; grid-template-columns: 8.2rem minmax(7rem, 11rem) minmax(0, 1fr) 4.6rem; gap: 0.4rem 0.8rem; align-items: start; }
   .shape .actions { display: flex; flex-direction: column; align-items: stretch; gap: 0.3rem; }
   .shape .act-row { display: flex; gap: 0.3rem; align-items: center; }
@@ -78,8 +80,26 @@
 </div>
 <main>
   <p id="status" class="note">Loading</p>
-  <section id="home" hidden></section>
-  <section id="spam"></section>
+  <section id="home" class="home">
+    <h2>What this is</h2>
+    <p>Sift watches this node's mempool. A transaction that matches a spam row gets a mining priority so low that the node leaves it out of the block it builds. The transaction stays in the mempool, and other nodes can still relay it. A whitelist row is the other direction: that shape is left unmarked, and a package can be sent to another sidecar when the row is on and this node marked the transaction.</p>
+    <h2>The cards</h2>
+    <p><b>TX in mempool</b> is this page. The first number is the mempool. The red number is how many of those are marked out of the next block.</p>
+    <p><b>Spam txs recently blocked</b> opens the list of those marks.</p>
+    <p><b>Peer in/out</b> is who dialed this sidecar, then who this sidecar dials. One peer can be both.</p>
+    <p><b>Spam shapes</b> is the catalog, then how many of the on rows are the node's own rules, then how many are Sift only.</p>
+    <p><b>Whitelist</b> is the catalog, then zero for the node, then how many Sift has on.</p>
+    <p><b>Whitelist packages relayed</b> is packages received, then packages this sidecar sent. A row stays after the transactions confirm.</p>
+    <h2>Getting started</h2>
+    <ol>
+      <li>Open the gear. Set the name, and a published address and port that another sidecar can dial. 0.0.0.0 and 127.0.0.1 are not shared.</li>
+      <li>Open Spam shapes or Whitelist. On marks or saves. Off does nothing. Test looks at this mempool and does not change the node. A row with no checker is a name only. It is stored and does not run.</li>
+      <li>Open Peers. Add a sidecar as host:port, or search. A peer that announces 0.0.0.0 can connect in and cannot be dialed back.</li>
+      <li>A whitelist package goes out only when that row is on and this scan marked the transaction. A package that only arrived from a peer is not passed on.</li>
+    </ol>
+    <p class="note">The gear can show a sample bitcoin.conf. Sift does not write that file and does not restart the node.</p>
+  </section>
+  <section id="spam" hidden></section>
   <section id="whitelist" hidden></section>
   <section id="peers" hidden></section>
   <section id="sent" hidden></section>
