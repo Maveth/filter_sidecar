@@ -70,7 +70,7 @@
         "own_fee_below_line": true,
         "descendant_package_sat_vb_min": 1
       },
-      "note": "A low-fee transaction whose descendant package already meets the fee line. Clears only the minimum-fee mark. Any other spam mark remains.",
+      "note": "A low-fee transaction whose descendant package meets the fee line, and no other spam mark remains. The child has to clear the fee, including a dust penalty. A parent that is still spam keeps the large negative mining score, is not given the whitelist priority, and is not sent as this package.",
       "slug": "package-paid",
       "checker": "package-paid"
     },

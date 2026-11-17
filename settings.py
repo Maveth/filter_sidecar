@@ -187,7 +187,7 @@ RULE_FIELDS = (
     {"key": "whitelist_powpeg", "type": "bool", "label": "PowPeg flyover", "help": "Leave a Rootstock PowPeg spend unmarked by the fake-multisig check. Any other mark stays."},
     {"key": "whitelist_dust_sweep", "type": "bool", "label": "Dust sweep", "help": "Leave a transaction whose only output is a short OP_RETURN unmarked by the data-carrier check."},
     {"key": "dustsweep_payload_max", "type": "int", "label": "Dust sweep bytes", "help": "The single OP_RETURN may have at most this many payload bytes."},
-    {"key": "whitelist_package_paid", "type": "bool", "label": "Package-paid", "help": "Leave a low-fee transaction unmarked when a descendant has lifted the package to the fee line."},
+    {"key": "whitelist_package_paid", "type": "bool", "label": "Package-paid", "help": "Add the whitelist priority when a descendant lifts this transaction over the fee line, including a dust penalty, and no other spam mark remains."},
     {"key": "package_paid_sat_vb", "type": "int", "label": "Package fee", "help": "The descendant package must be at least this many sat/vB."},
     {
         "key": "datacarrier",

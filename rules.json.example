@@ -60,6 +60,6 @@
   "whitelist_powpeg": false,
   "whitelist_dust_sweep": false,
   "dustsweep_payload_max": 4,
-  "whitelist_package_paid": false,
+  "whitelist_package_paid": true,
   "package_paid_sat_vb": 1
 }

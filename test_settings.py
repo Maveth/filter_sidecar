@@ -164,7 +164,7 @@ class ShapeCardTest(unittest.TestCase):
         self.assertIsNone(json.loads(Path("shapes/WLS-11.json").read_text())["checker"])
         paid = next(row for row in listed if row.get("slug") == "package-paid")
         self.assertEqual(paid["id"], "WLS-2")
-        self.assertFalse(paid["active"])
+        self.assertTrue(paid["active"])
         self.assertTrue(paid["test"])
         self.assertEqual(paid["sliders"][0]["value"], 1)
         self.assertFalse(board._silence({"rejectfanout": True}, "fanout")["rejectfanout"])

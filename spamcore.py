@@ -822,7 +822,10 @@ def clamp_template_request(req: dict, flags: dict) -> dict:
 
 
 def package_from_entry(entry: dict) -> tuple[int | None, int | None]:
-    """Descendant package fee and vsize when a child is paying for this transaction."""
+    """Descendant package fee and vsize when a child is paying for this transaction.
+
+    The fee is the node's modified descendant fee, so a dust penalty is already removed.
+    """
     if not isinstance(entry, dict) or (entry.get("descendantcount") or 0) <= 1:
         return None, None
     fees = (entry.get("fees") or {}).get("descendant")
@@ -847,6 +850,18 @@ def paid_by_descendant(
     if fee_sat / vsize >= float(floor):
         return False
     return package_fee_sat / package_vsize >= float(floor)
+
+
+def package_paid_clean(
+    flags: dict, fee_sat: int | None, vsize: int | None,
+    package_fee_sat: int | None, package_vsize: int | None, reason: str | None,
+) -> bool:
+    """A child has lifted this parent over the fee line, and no other spam mark remains."""
+    if reason:
+        return False
+    return bool(flags.get("whitelist_package_paid") is True and paid_by_descendant(
+        flags, fee_sat, vsize, package_fee_sat, package_vsize,
+    ))
 
 
 def package_clears_fee(flags: dict, package_fee_sat: int | None, package_vsize: int | None) -> bool:

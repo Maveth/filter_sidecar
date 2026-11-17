@@ -25,7 +25,7 @@ def _stamp(*args, **kwargs):
 
 print = _stamp
 
-from spamcore import ANCHOR_SCRIPT, package_from_entry, paid_by_descendant, prevout_scripts, single_opreturn, tx_input_outpoints, tx_is_ark_whitelist, whitelist_items, tx_reject_reason, _tx_parts
+from spamcore import ANCHOR_SCRIPT, package_from_entry, package_paid_clean, prevout_scripts, single_opreturn, tx_input_outpoints, tx_is_ark_whitelist, whitelist_items, tx_reject_reason, _tx_parts
 
 # Larger than a block of fees, so a child cannot pay a marked parent back in.
 # Satoshis. Knots adds this to the fee it uses for mining selection only.
@@ -425,7 +425,7 @@ def scan(
             own_vsize = entry.get("vsize")
             if not isinstance(own_vsize, int) and isinstance(weight, int):
                 own_vsize = (int(weight) + 3) // 4
-            if flags.get("whitelist_package_paid") is True and paid_by_descendant(flags, fee_sat, own_vsize if isinstance(own_vsize, int) else None, package_fee, package_vsize):
+            if package_paid_clean(flags, fee_sat, own_vsize if isinstance(own_vsize, int) else None, package_fee, package_vsize, reason):
                 paid_packages.append((raw_hex, txid))
             span = whitelist_items(
                 raw, flags, fee=fee_sat,
@@ -470,7 +470,24 @@ def scan(
             pass
     for txid in protected:
         want.pop(txid, None)
-    lift = {txid for txid in (protected | two_ids) if txid in live and txid not in want}
+    # WLS-1 may clear other marks. WLS-2 may not: a paid parent stays out while it,
+    # or a descendant it would pull in, is still spam.
+    paid_ids: set[str] = set()
+    kept_paid: list[tuple[str, str]] = []
+    for raw_hex, txid in paid_packages:
+        if txid not in live or txid in want:
+            continue
+        try:
+            kids = node.call("getmempooldescendants", [txid, False]) or []
+        except Exception:
+            kids = []
+        if any(str(kid) in want for kid in kids):
+            continue
+        kept_paid.append((raw_hex, txid))
+        paid_ids.add(txid)
+    if paid is not None:
+        paid[:] = kept_paid
+    lift = {txid for txid in (protected | one_ids | two_ids | paid_ids) if txid in live and txid not in want}
     for gone in [txid for txid in list(boosted) if txid not in live or txid not in lift]:
         boosted.discard(gone)
     boost_whitelist(node, lift, boosted, dry_run, whitelist_delta)

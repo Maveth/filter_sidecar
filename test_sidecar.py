@@ -306,6 +306,63 @@ class RulesTest(unittest.TestCase):
     def test_a_low_fee_parent_with_a_paying_child_is_package_paid(self):
         self.assertTrue(spamcore.paid_by_descendant({}, 17, 155, 500, 200))
         self.assertFalse(spamcore.paid_by_descendant({}, 200, 100, 500, 200))
+        on = {"whitelist_package_paid": True}
+        self.assertTrue(spamcore.package_paid_clean(on, 17, 155, 500, 200, None))
+        self.assertFalse(spamcore.package_paid_clean(on, 17, 155, 500, 200, "fakemultisig"))
+        self.assertFalse(spamcore.package_paid_clean({}, 17, 155, 500, 200, None))
+
+    def test_package_paid_lifts_a_clean_parent_and_not_a_spam_parent(self):
+        clean = _pay_many(1, value=10000)
+        spam = _pay_many(25, value=10000)
+        clean_id = "aa" * 32
+        spam_id = "bb" * 32
+        mixed_id = "cc" * 32
+        raws = {clean_id: clean.hex(), spam_id: spam.hex(), mixed_id: clean.hex()}
+        kids = {clean_id: [], spam_id: [], mixed_id: [spam_id]}
+        entry = {
+            "fees": {"base": 0.00000017, "modified": 0.00000017, "descendant": 0.00000500},
+            "vsize": 155,
+            "weight": 620,
+            "sigops": 1,
+            "descendantcount": 2,
+            "descendantsize": 200,
+        }
+        calls = []
+
+        class Node:
+            def call(self, method, params):
+                calls.append((method, params))
+                if method == "getrawmempool":
+                    return [clean_id, spam_id, mixed_id]
+                if method == "getmempoolentry":
+                    return dict(entry)
+                if method == "getrawtransaction":
+                    return raws[params[0]]
+                if method == "getmempooldescendants":
+                    return list(kids.get(params[0], []))
+                if method == "getprioritisedtransactions":
+                    return {}
+                return None
+
+        flags = {
+            "whitelist_package_paid": True,
+            "package_paid_sat_vb": 1,
+            "minfee_sift": False,
+            "rejectfanout": True,
+            "fanout_outputs_min": 25,
+            "fanout_inputs_max": 2,
+        }
+        paid = []
+        sidecar.scan(
+            Node(), flags, sidecar.DEFAULT_DELTA, False, {}, {}, set(), set(), set(), True,
+            None, paid, None, 1000,
+        )
+        boosts = [params for method, params in calls if method == "prioritisetransaction"]
+        self.assertEqual(paid, [(clean.hex(), clean_id)])
+        self.assertIn([clean_id, 0, 1000], boosts)
+        self.assertNotIn([spam_id, 0, 1000], boosts)
+        self.assertNotIn([mixed_id, 0, 1000], boosts)
+        self.assertIn([spam_id, 0, sidecar.DEFAULT_DELTA], boosts)
 
     def test_a_received_ark_set_is_inserted_parent_then_child(self):
         class Fake:
