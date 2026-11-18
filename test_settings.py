@@ -78,7 +78,9 @@ class ShapeCardTest(unittest.TestCase):
         self.assertEqual(rows["min-fee"]["id"], "SFS-28")
         self.assertEqual(rows["many-sigs"]["id"], "SFS-31")
         watch = [shape["id"] for shape in shapes if shape.get("kind") == "watch"]
-        self.assertEqual(watch, ["WCH-1", "WCH-2", "WCH-3", "WCH-4"])
+        self.assertEqual(watch, [])
+        self.assertEqual(rows["cat21"]["sources"][0]["label"], "github")
+        self.assertTrue(rows["cat21"]["sources"][0]["url"].endswith("/shapes/SFS-1.json"))
         self.assertFalse((Path(__file__).resolve().parent / "shapes" / "opreturn-marker.json").exists())
         self.assertEqual(rows["cat21"]["control"], "locked")
         self.assertEqual(rows["cat21"]["conf"][0]["line"], "rejectparasites=1")

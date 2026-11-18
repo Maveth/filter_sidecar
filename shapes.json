@@ -951,69 +951,6 @@
       "note": "Extra filter, Sift only, off until turned on. SFS-5 is on and already marks a CHECKMULTISIG with more than ten 33-byte keys. It does not see these three, so they are still missed while this row is off. A key inside OP_DEPTH OP_0NOTEQUAL OP_NOTIF. A key then CHECKSIG DROP when the signature item is empty. A tapscript whose 32-byte keys outnumber the signature items by more than ten. A full-size item still counts as a signature. Knots #470 is not in this node.",
       "slug": "unverified-key",
       "checker": "unverified-key"
-    },
-    {
-      "id": "WCH-1",
-      "kind": "watch",
-      "carry": "definition",
-      "title": "One small OP_RETURN",
-      "from": "gbt-rules flt:side-op_return",
-      "schema": {
-        "opreturn_count": 1,
-        "opreturn_bytes_max": 83
-      },
-      "note": "Too wide to mark. A named row in this file wins when the bytes match it.",
-      "slug": "opreturn-marker",
-      "checker": null
-    },
-    {
-      "id": "WCH-2",
-      "kind": "watch",
-      "carry": "definition",
-      "title": "Small output",
-      "from": "gbt-rules flt:side-small-output",
-      "schema": {
-        "outputs_under_1000_sat": {
-          "min": 1,
-          "max": 9
-        },
-        "dust_outputs": 0
-      },
-      "note": "Ordinary small payments and anchors. Shown, not marked.",
-      "slug": "small-output",
-      "checker": null
-    },
-    {
-      "id": "WCH-3",
-      "kind": "watch",
-      "carry": "definition",
-      "title": "Odd output type",
-      "from": "gbt-rules flt:side-odd-script",
-      "schema": {
-        "output_type_not": [
-          "taproot",
-          "segwit-v0",
-          "p2sh",
-          "p2pkh",
-          "opreturn",
-          "anchor"
-        ]
-      },
-      "slug": "odd-script",
-      "checker": null
-    },
-    {
-      "id": "WCH-4",
-      "kind": "watch",
-      "carry": "definition",
-      "title": "Liquid emergency spend",
-      "from": "cesspool",
-      "schema": {
-        "script": "11-of-15 fails, then 2-of-3 after 4032 blocks"
-      },
-      "note": "Likely Liquid's own recovery. The layout can be copied, so it is not a whitelist. It is not enabled as spam either.",
-      "slug": "liquid-emergency",
-      "checker": null
     }
   ]
 }

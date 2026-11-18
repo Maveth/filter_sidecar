@@ -142,6 +142,46 @@ class RulesTest(unittest.TestCase):
         self.assertIsNone(tx_reject_reason(empty, on))
         self.assertEqual(tx_reject_reason(real, on), "runestone")
 
+    def test_an_empty_op_return_is_kept_when_that_whitelist_is_on(self):
+        empty = _one_output(b"\x6a\x4c\x00")
+        off = {"datacarrier": False, "whitelist_empty_opreturn": False}
+        on = {"datacarrier": False, "whitelist_empty_opreturn": True}
+        self.assertEqual(tx_reject_reason(empty, off), "datacarrier")
+        self.assertIsNone(tx_reject_reason(empty, on))
+        self.assertEqual(
+            tx_reject_reason(_one_output(b"\x6a\x5d"), {**on, "rejectrunestones": True}),
+            "runestone",
+        )
+
+    def test_a_short_only_op_return_is_a_dust_sweep(self):
+        short = _one_output(b"\x6a\x04" + b"dust")
+        longer = _one_output(b"\x6a\x05" + b"dusty")
+        on = {"datacarrier": False, "whitelist_dust_sweep": True}
+        self.assertIsNone(tx_reject_reason(short, on))
+        self.assertEqual(tx_reject_reason(longer, on), "datacarrier")
+        self.assertEqual(tx_reject_reason(short, {"datacarrier": False}), "datacarrier")
+
+    def test_plain_op_return_text_and_bytes_are_marked_and_named_prefixes_are_not(self):
+        text = _one_output(b"\x6a\x05hello")
+        data = _one_output(b"\x6a\x02\x00\xff")
+        self.assertEqual(tx_reject_reason(text, {"rejectopreturntext": True}), "opreturntext")
+        self.assertIsNone(tx_reject_reason(text, {"rejectopreturntext": False}))
+        self.assertEqual(tx_reject_reason(data, {"rejectopreturndata": True}), "opreturndata")
+        self.assertIsNone(tx_reject_reason(data, {"rejectopreturntext": True}))
+        babylon = _one_output(b"\x6a\x05bbn1x")
+        self.assertEqual(tx_reject_reason(babylon, {"rejectbabylon": True}), "babylon")
+        self.assertIsNone(tx_reject_reason(babylon, {"rejectopreturntext": True}))
+        core = _one_output(b"\x6a\x04SAT+")
+        self.assertEqual(tx_reject_reason(core, {"rejectcoredao": True}), "coredao")
+        self.assertIsNone(tx_reject_reason(core, {"rejectopreturndata": True}))
+
+    def test_many_signature_checks_use_the_nodes_count(self):
+        raw = _one_output(b"\x00\x14" + b"\x11" * 20)
+        flags = {"rejectmanysigs": True, "manysigs_min": 100}
+        self.assertEqual(tx_reject_reason(raw, flags, sigops=100), "manysigs")
+        self.assertIsNone(tx_reject_reason(raw, flags, sigops=99))
+        self.assertIsNone(tx_reject_reason(raw, {"rejectmanysigs": False, "manysigs_min": 100}, sigops=100))
+
     def test_a_32_byte_commitment_is_not_data_carrier_spam(self):
         off = {"datacarrier": False, "whitelist_commitment_32": False}
         on = {"datacarrier": False, "whitelist_commitment_32": True}

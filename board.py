@@ -439,6 +439,28 @@ def _conf_line(key: str, conf: dict) -> str:
     return f"{key}={conf[key]}"
 
 
+GITHUB_SHAPE = "https://github.com/Maveth/filter_sidecar/blob/main/shapes/{shape_id}.json"
+
+
+def sources_for(row: dict) -> list[dict]:
+    """The shape file on GitHub, then any other page that describes the same row."""
+    found: list[dict] = []
+    shape_id = str(row.get("id") or "")
+    if shape_id:
+        found.append({"label": "github", "url": GITHUB_SHAPE.format(shape_id=shape_id)})
+    label, url = source_of(str(row.get("from") or ""))
+    if url and url not in {item["url"] for item in found}:
+        short = label.split(" ")[0] if label else "source"
+        if short.startswith("cesspool"):
+            short = "cesspool"
+        elif short.startswith("gbt"):
+            short = "gbt"
+        elif short.startswith("knots") or short.startswith("Knots"):
+            short = "knots"
+        found.append({"label": short, "url": url})
+    return found
+
+
 def source_of(origin: str) -> tuple[str, str]:
     text = (origin or "").strip()
     number = ""
@@ -532,6 +554,7 @@ def whitelist_cards(shapes: list[dict], rules: dict) -> tuple[list[dict], dict[s
             "also": [],
             "source_label": label,
             "source_url": url,
+            "sources": sources_for(row),
             "exempt": _overrides_for(row.get("slug") or row["id"], spam),
             "control": "bool" if key else "none",
             "active": rule_is_on(rules, key) if key else False,
@@ -582,6 +605,7 @@ def _face(row: dict, n: int, rules: dict, node: dict, titles: dict[str, list[str
     faced["description"] = row.get("note") or "No description yet."
     faced["source_label"] = label
     faced["source_url"] = url
+    faced["sources"] = sources_for(row)
     faced["also"] = others
     faced["conf"] = _conf_for(row["id"], node)
     control, active, sat_vb, floor, node_vb, default_vb = _control(row, rules, node)

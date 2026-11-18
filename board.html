@@ -616,8 +616,11 @@ const LOCK_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="
 
 function shapeCards(rows) {
   return rows.map((row) => {
-    const source = row.source_url
-      ? `<a href="${esc(row.source_url)}" title="${esc(row.source_url)}">${esc(shortSource(row))}</a>`
+    const links = (row.sources && row.sources.length) ? row.sources : (
+      row.source_url ? [{label: shortSource(row), url: row.source_url}] : []
+    );
+    const source = links.length
+      ? links.map((item) => `<a href="${esc(item.url)}" title="${esc(item.url)}">${esc(item.label)}</a>`).join("<br>")
       : esc(shortSource(row));
     const lock = row.control === "locked"
       ? `<button type="button" class="lock" disabled title="On in Knots. The rules file can still change it." aria-label="Locked">${LOCK_ICON}</button>`
