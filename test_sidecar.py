@@ -175,6 +175,27 @@ class RulesTest(unittest.TestCase):
         self.assertEqual(tx_reject_reason(core, {"rejectcoredao": True}), "coredao")
         self.assertIsNone(tx_reject_reason(core, {"rejectopreturndata": True}))
 
+    def test_omni_counterparty_stamps_and_json_tokens_use_their_prefixes(self):
+        def opreturn(payload: bytes) -> bytes:
+            return _one_output(b"\x6a" + bytes([len(payload)]) + payload)
+
+        omni = opreturn(b"omni")
+        party = opreturn(b"CNTRPRTY")
+        stamp = opreturn(b"stamp:")
+        token = opreturn(b'{"p":1x}')
+        other = opreturn(b'{"op":"ab"}')
+        self.assertEqual(tx_reject_reason(omni, {"rejecttokenmessages": True}), "token")
+        self.assertIsNone(tx_reject_reason(omni, {}))
+        self.assertEqual(tx_reject_reason(party, {"rejectcounterparty": True}), "token")
+        self.assertIsNone(tx_reject_reason(party, {"rejectstamps": True}))
+        self.assertIsNone(tx_reject_reason(opreturn(b"CNTRPRT"), {"rejectcounterparty": True}))
+        self.assertEqual(tx_reject_reason(stamp, {"rejectstamps": True}), "token")
+        self.assertIsNone(tx_reject_reason(stamp, {"rejectcounterparty": True}))
+        self.assertEqual(tx_reject_reason(token, {"rejecttokenmessages": True}), "token")
+        self.assertIsNone(tx_reject_reason(other, {"rejecttokenmessages": True}))
+        late = b"{" + (b"x" * 47) + b'"p":1'
+        self.assertIsNone(tx_reject_reason(opreturn(late), {"rejecttokenmessages": True}))
+
     def test_many_signature_checks_use_the_nodes_count(self):
         raw = _one_output(b"\x00\x14" + b"\x11" * 20)
         flags = {"rejectmanysigs": True, "manysigs_min": 100}
