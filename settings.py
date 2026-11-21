@@ -191,6 +191,7 @@ RULE_FIELDS = (
     {"key": "whitelist_powpeg", "type": "bool", "label": "PowPeg flyover", "help": "Leave a Rootstock PowPeg spend unmarked by the fake-multisig check. Any other mark stays."},
     {"key": "whitelist_miniscript_behind_check", "type": "bool", "label": "Timelock then OP_TRUE", "help": "Leave OP_TRUE with one CSV or CLTV and DROP unmarked. This is not a miniscript parser."},
     {"key": "whitelist_bolt3_to_local", "type": "bool", "label": "BOLT 3 to_local", "help": "Leave the BOLT 3 local-delay script unmarked. IF, a compressed key, ELSE, a delay, CSV, DROP, a compressed key, ENDIF, CHECKSIG."},
+    {"key": "whitelist_bolt3_htlc", "type": "bool", "label": "BOLT 3 HTLC", "help": "Leave the four BOLT 3 HTLC scripts unmarked: offered and received, each with and without the anchor delay. The anchor output is a separate row."},
     {"key": "whitelist_lnd_revocation", "type": "bool", "label": "LND revocation leaf", "help": "Leave a tapscript of a 32-byte key, DROP, a 32-byte key, CHECKSIG unmarked."},
     {"key": "whitelist_phoenix_swap_in", "type": "bool", "label": "Phoenix swap-in", "help": "Leave the Phoenix swap-in script unmarked, in the CSV form and the CLTV form."},
     {"key": "whitelist_boltz_swap", "type": "bool", "label": "Boltz submarine swap", "help": "Leave the Boltz SIZE, HASH160, and CLTV script unmarked."},

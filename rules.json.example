@@ -64,6 +64,7 @@
   "whitelist_powpeg": false,
   "whitelist_miniscript_behind_check": false,
   "whitelist_bolt3_to_local": false,
+  "whitelist_bolt3_htlc": false,
   "whitelist_lnd_revocation": false,
   "whitelist_phoenix_swap_in": false,
   "whitelist_boltz_swap": false,

@@ -288,9 +288,9 @@
           "ln-htlc-received-anchors"
         ]
       },
-      "note": "The four BOLT 3 HTLC scripts. The anchor output those channels also use is WLS-6, not this row. This row is a name. The check is not written. Not an insert package.",
+      "note": "The check matches the four BOLT 3 commitment HTLC scripts: offered and received, each plain and with the anchor 1 CSV DROP. Both keys are compressed. Both hashes are 20 bytes. The anchor output itself is WLS-6. Not an insert package.",
       "slug": "bolt3-htlc",
-      "checker": null
+      "checker": "bolt3-htlc"
     },
     {
       "id": "WLS-15",

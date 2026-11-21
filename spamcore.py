@@ -24,6 +24,7 @@ CHECKERS = frozenset({
     "consolidation",
     "miniscript-behind-check",
     "bolt3-to-local",
+    "bolt3-htlc",
     "lnd-revocation",
     "phoenix-swap-in",
     "boltz-swap",
@@ -742,6 +743,115 @@ def _is_tapscript_threshold(ops: list[tuple[int, bytes]]) -> bool:
     return threshold is not None and 1 <= threshold <= keys
 
 
+def _op(ops: list[tuple[int, bytes]], index: int, opcode: int) -> int | None:
+    if index < len(ops) and ops[index][0] == opcode:
+        return index + 1
+    return None
+
+
+def _hash160_push(ops: list[tuple[int, bytes]], index: int) -> int | None:
+    if index < len(ops) and _direct_push(*ops[index], 20):
+        return index + 1
+    return None
+
+
+def _bolt3_anchor_end(ops: list[tuple[int, bytes]], index: int) -> bool:
+    """The final ENDIF, or 1 CSV DROP and that ENDIF. BOLT 3 adds the delay only for anchors."""
+    if index + 1 == len(ops) and ops[index][0] == 0x68:
+        return True
+    return (
+        index + 4 == len(ops)
+        and ops[index][0] == 0x51 and ops[index + 1][0] == 0xB2
+        and ops[index + 2][0] == 0x75 and ops[index + 3][0] == 0x68
+    )
+
+
+def _bolt3_offered(ops: list[tuple[int, bytes]], index: int) -> bool:
+    """NOTIF DROP 2 SWAP key 2 CHECKMULTISIG ELSE HASH160 hash EQUALVERIFY CHECKSIG ENDIF."""
+    for opcode in (0x75, 0x52, 0x7C):
+        index = _op(ops, index, opcode)
+        if index is None:
+            return False
+    if index >= len(ops) or not _compressed_key(*ops[index]):
+        return False
+    index += 1
+    for opcode in (0x52, 0xAE, 0x67, 0xA9):
+        index = _op(ops, index, opcode)
+        if index is None:
+            return False
+    index = _hash160_push(ops, index)
+    if index is None:
+        return False
+    for opcode in (0x88, 0xAC, 0x68):
+        index = _op(ops, index, opcode)
+        if index is None:
+            return False
+    return _bolt3_anchor_end(ops, index)
+
+
+def _bolt3_received(ops: list[tuple[int, bytes]], index: int) -> bool:
+    """IF HASH160 hash EQUALVERIFY 2 SWAP key 2 CHECKMULTISIG ELSE DROP delay CLTV DROP CHECKSIG ENDIF."""
+    index = _op(ops, index, 0xA9)
+    if index is None:
+        return False
+    index = _hash160_push(ops, index)
+    if index is None:
+        return False
+    for opcode in (0x88, 0x52, 0x7C):
+        index = _op(ops, index, opcode)
+        if index is None:
+            return False
+    if index >= len(ops) or not _compressed_key(*ops[index]):
+        return False
+    index += 1
+    for opcode in (0x52, 0xAE, 0x67, 0x75):
+        index = _op(ops, index, opcode)
+        if index is None:
+            return False
+    if index >= len(ops) or _positive_number(*ops[index]) is None:
+        return False
+    index += 1
+    for opcode in (0xB1, 0x75, 0xAC, 0x68):
+        index = _op(ops, index, opcode)
+        if index is None:
+            return False
+    return _bolt3_anchor_end(ops, index)
+
+
+def _is_bolt3_htlc(ops: list[tuple[int, bytes]]) -> bool:
+    """BOLT 3 offered and received HTLC scripts, each with and without the anchor delay."""
+    index = 0
+    for opcode in (0x76, 0xA9):
+        index = _op(ops, index, opcode)
+        if index is None:
+            return False
+    index = _hash160_push(ops, index)
+    if index is None:
+        return False
+    for opcode in (0x87, 0x63, 0xAC, 0x67):
+        index = _op(ops, index, opcode)
+        if index is None:
+            return False
+    if index >= len(ops) or not _compressed_key(*ops[index]):
+        return False
+    index += 1
+    for opcode in (0x7C, 0x82):
+        index = _op(ops, index, opcode)
+        if index is None:
+            return False
+    if index >= len(ops) or ops[index] != (1, b"\x20"):
+        return False
+    index += 1
+    index = _op(ops, index, 0x87)
+    if index is None or index >= len(ops):
+        return False
+    if ops[index][0] == 0x64:
+        return _bolt3_offered(ops, index + 1)
+    if ops[index][0] == 0x63:
+        return _bolt3_received(ops, index + 1)
+    return False
+
+
 def _is_tagged_key(ops: list[tuple[int, bytes]]) -> bool:
     """One or two 32-byte keys and CHECKSIGVERIFY, then a short push. Or CHECKSIG IF push ENDIF."""
     if len(ops) == 3 and _xonly_key(*ops[0]) and ops[1][0] == 0xAD and _direct_push(*ops[2], 32):
@@ -766,6 +876,8 @@ def _known_script(script: bytes) -> str | None:
         return "miniscript-behind-check"
     if _is_bolt3_to_local(ops):
         return "bolt3-to-local"
+    if _is_bolt3_htlc(ops):
+        return "bolt3-htlc"
     if _is_lnd_revoke(ops):
         return "lnd-revocation"
     if _is_phoenix(ops):
@@ -786,6 +898,7 @@ def _known_script(script: bytes) -> str | None:
 _KNOWN_FLAG = {
     "miniscript-behind-check": "whitelist_miniscript_behind_check",
     "bolt3-to-local": "whitelist_bolt3_to_local",
+    "bolt3-htlc": "whitelist_bolt3_htlc",
     "lnd-revocation": "whitelist_lnd_revocation",
     "phoenix-swap-in": "whitelist_phoenix_swap_in",
     "boltz-swap": "whitelist_boltz_swap",

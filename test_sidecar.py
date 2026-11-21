@@ -684,6 +684,26 @@ class RulesTest(unittest.TestCase):
         kept(local, "bolt3-to-local", "whitelist_bolt3_to_local")
         self.assertIsNone(_known_script(b"\x63" + b"\x21" + b"\x04" + b"\x11" * 32 + local[35:]))
 
+        def h20(n: int) -> bytes:
+            return bytes([20]) + bytes([n]) * 20
+
+        def htlc(received: bool, anchor: bool) -> bytes:
+            body = b"\x76\xa9" + h20(1) + b"\x87\x63\xac\x67" + key(2) + b"\x7c\x82\x01\x20\x87"
+            if received:
+                body += b"\x63\xa9" + h20(4) + b"\x88\x52\x7c" + key(3) + b"\x52\xae\x67\x75\x03\xa0\xbb\x0d\xb1\x75\xac\x68"
+            else:
+                body += b"\x64\x75\x52\x7c" + key(3) + b"\x52\xae\x67\xa9" + h20(4) + b"\x88\xac\x68"
+            if anchor:
+                body += b"\x51\xb2\x75"
+            return body + b"\x68"
+
+        for received in (False, True):
+            for anchor in (False, True):
+                kept(htlc(received, anchor), "bolt3-htlc", "whitelist_bolt3_htlc")
+        self.assertIsNone(_known_script(htlc(False, False)[:-1] + b"\x01\x01\xb2\x75\x68"))
+        self.assertIsNone(_known_script(htlc(False, False).replace(b"\x82\x01\x20\x87", b"\x82\x01\x21\x87", 1)))
+        self.assertIsNone(_known_script(htlc(True, True).replace(b"\x51\xb2\x75\x68", b"\x51\xb1\x75\x68", 1)))
+
         revoke = xonly(1) + b"\x75" + xonly(2) + b"\xac"
         kept(revoke, "lnd-revocation", "whitelist_lnd_revocation", control=control)
         self.assertIsNone(_known_script(xonly(1) + b"\x75" + key(2) + b"\xac"))

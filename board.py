@@ -66,6 +66,7 @@ LIVE_RULE = {
     "consolidation": "whitelist_consolidation",
     "miniscript-behind-check": "whitelist_miniscript_behind_check",
     "bolt3-to-local": "whitelist_bolt3_to_local",
+    "bolt3-htlc": "whitelist_bolt3_htlc",
     "lnd-revocation": "whitelist_lnd_revocation",
     "phoenix-swap-in": "whitelist_phoenix_swap_in",
     "boltz-swap": "whitelist_boltz_swap",
