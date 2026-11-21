@@ -1,4 +1,9 @@
 __pycache__/
+node_modules/
+javascript/
+.startos/
+.tool/
+*.s9pk
 config.json
 config.seed.json
 rules.json

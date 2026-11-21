@@ -6,6 +6,7 @@ It does not dial a peer or insert a transaction.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -736,7 +737,7 @@ _MEMPOOL: dict[str, tuple[float, dict, dict]] = {}
 def _config_for_log(log_path: Path) -> dict:
     name = Path(log_path).name
     filename = "config.seed.json" if "seed" in name else "config.json"
-    path = Path(__file__).resolve().parent / filename
+    path = _base() / filename
     data = json.loads(path.read_text())
     if not isinstance(data, dict) or not data.get("rpc_url"):
         raise ValueError("this node's connection is not configured")
@@ -1210,6 +1211,10 @@ def view(shapes_path: Path, rules: dict, log_path: Path, sent_path: Path) -> dic
 
 
 def _base() -> Path:
+    """State directory. SIFT_DIR is the StartOS data disk. Unset keeps files beside this code."""
+    state = os.environ.get("SIFT_DIR", "").strip()
+    if state:
+        return Path(state)
     return Path(__file__).resolve().parent
 
 

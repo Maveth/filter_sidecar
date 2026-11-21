@@ -588,6 +588,8 @@ def main() -> int:
                 catalog = int(loaded.get("version") or 1)
                 catalog_shapes = loaded.get("shapes") if isinstance(loaded.get("shapes"), list) else []
                 catalog_shapes = list(catalog_shapes) + board.load_private_shapes(shapes.parent)
+                if cfg_path.parent != shapes.parent:
+                    catalog_shapes += board.load_private_shapes(cfg_path.parent)
             except (json.JSONDecodeError, TypeError, ValueError):
                 catalog = 1
         peers_path = Path(cfg.get("peers_file") or "peers.json")

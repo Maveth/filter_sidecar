@@ -1,0 +1,54 @@
+name: Tag and Release
+
+on:
+  push:
+    branches: ['main', 'master']
+    paths-ignore: ['*.md']
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    permissions:
+      contents: read
+    uses: Start9Labs/start-technologies/.github/workflows/build.yml@master
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download s9pk artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: sift_*
+          merge-multiple: true
+          path: dist
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: sift_0.1.0_0
+          name: 'Sift StartOS #sift:0.1.0:0'
+          body: |
+            Sideload for StartOS 0.4. Depends on Bitcoin Knots `#knots:29.4.2:4` or newer.
+
+            | File | Use on |
+            |------|--------|
+            | sift_aarch64.s9pk | Raspberry Pi / ARM |
+            | sift_x86_64.s9pk | Intel/AMD |
+
+            Install Bitcoin first, then sideload this package. Open the Sift interface for the rules. The Connection action only picks the node.
+          files: dist/*.s9pk
+          make_latest: true
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

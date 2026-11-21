@@ -28,7 +28,7 @@ PORT = 8093
 
 
 def _private_catalog() -> tuple[Path, dict]:
-    path = HERE / "shapes.local.json"
+    path = board._base() / "shapes.local.json"
     if path.is_file():
         try:
             data = json.loads(path.read_text())

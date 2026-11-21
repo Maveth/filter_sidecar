@@ -1,0 +1,19 @@
+import { VersionInfo } from '@start9labs/start-sdk'
+
+export const current = VersionInfo.of({
+  version: '#sift:0.1.0:0',
+  releaseNotes: {
+    en_US:
+      'First StartOS sideload. Sift marks the Knots mempool from the rules on its own page. It does not change Knots settings.',
+  },
+  migrations: {
+    up: async () => {},
+    down: async () => {},
+    other: {
+      ['*']: {
+        up: async () => {},
+        down: async () => {},
+      },
+    },
+  },
+})

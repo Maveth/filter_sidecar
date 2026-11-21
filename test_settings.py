@@ -11,6 +11,29 @@ import settings
 import ui
 
 
+class StateDirTest(unittest.TestCase):
+    def test_state_dir_is_beside_the_code_until_set(self):
+        import os
+        previous = os.environ.pop("SIFT_DIR", None)
+        try:
+            self.assertEqual(board._base(), Path(__file__).resolve().parent)
+        finally:
+            if previous is not None:
+                os.environ["SIFT_DIR"] = previous
+
+    def test_state_dir_follows_the_environment(self):
+        import os
+        previous = os.environ.get("SIFT_DIR")
+        os.environ["SIFT_DIR"] = "/tmp/sift-state-test"
+        try:
+            self.assertEqual(board._base(), Path("/tmp/sift-state-test"))
+        finally:
+            if previous is None:
+                os.environ.pop("SIFT_DIR", None)
+            else:
+                os.environ["SIFT_DIR"] = previous
+
+
 class PublishedTest(unittest.TestCase):
     def test_published_address_rejects_a_wildcard(self):
         with self.assertRaises(ValueError):
