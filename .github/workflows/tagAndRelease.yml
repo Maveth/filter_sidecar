@@ -22,14 +22,13 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download s9pk artifacts
-        uses: actions/download-artifact@v4
+      - name: Collect s9pks
+        uses: actions/download-artifact@v8
         with:
-          pattern: sift_*
           merge-multiple: true
           path: dist
 
