@@ -675,7 +675,7 @@
         "exempt": "the all-zero burn output beside it"
       },
       "slug": "stacks-commit",
-      "checker": null
+      "checker": "stacks-commit"
     },
     {
       "id": "SFS-16",
@@ -798,7 +798,7 @@
       },
       "note": "On this chain OP_IF in a tapscript is already invalid. The row stays so the name is not confused with cat21.",
       "slug": "inscription",
-      "checker": null
+      "checker": "inscription"
     },
     {
       "id": "SFS-25",

@@ -9,6 +9,8 @@
   "rejectstamps": true,
   "rejectbip47": false,
   "rejectacme": false,
+  "rejectstacks": false,
+  "rejectinscription": false,
   "rejectparasites": true,
   "permitbaremultisig": false,
   "permitbarepubkey": false,

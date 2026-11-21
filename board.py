@@ -52,6 +52,8 @@ LIVE_RULE = {
     "bare-inscription": "rejectbareinscription",
     "bip47-notice": "rejectbip47",
     "acme-p2wsh": "rejectacme",
+    "stacks-commit": "rejectstacks",
+    "inscription": "rejectinscription",
     "many-sigs": "rejectmanysigs",
     "dust-sweep": "whitelist_dust_sweep",
     "lightning-anchor-sweep": "whitelist_lightning_anchor_sweep",
@@ -156,6 +158,8 @@ PREVIEW = {
     "bare-inscription": ("bareinscription", {"rejectbareinscription": True}),
     "bip47-notice": ("bip47", {"rejectbip47": True}),
     "acme-p2wsh": ("acme", {"rejectacme": True}),
+    "stacks-commit": ("stacks", {"rejectstacks": True}),
+    "inscription": ("inscription", {"rejectinscription": True}),
     "many-sigs": ("manysigs", {}),
 }
 
@@ -836,6 +840,8 @@ def _silence(flags: dict, reason: str) -> dict | None:
         "bareinscription": "rejectbareinscription",
         "bip47": "rejectbip47",
         "acme": "rejectacme",
+        "stacks": "rejectstacks",
+        "inscription": "rejectinscription",
         "manysigs": "rejectmanysigs",
         "deadbranch": "rejectdeadbranches",
         "bareenvelope": "rejectbareenvelopes",

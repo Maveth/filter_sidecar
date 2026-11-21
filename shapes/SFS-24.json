@@ -10,5 +10,5 @@
   },
   "note": "On this chain OP_IF in a tapscript is already invalid. The row stays so the name is not confused with cat21.",
   "slug": "inscription",
-  "checker": null
+  "checker": "inscription"
 }

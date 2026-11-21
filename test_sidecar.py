@@ -245,6 +245,22 @@ class RulesTest(unittest.TestCase):
         self.assertIsNone(tx_reject_reason(acme, {"rejectstamps": True}))
         self.assertIsNone(tx_reject_reason(stamp, {"rejectacme": True}))
 
+    def test_stacks_commit_and_inscription_envelope(self):
+        def opreturn(payload: bytes) -> bytes:
+            return _one_output(b"\x6a" + bytes([len(payload)]) + payload)
+
+        stacks = opreturn(b"X2" + b"\x11" * 8)
+        other = opreturn(b"X1commit")
+        self.assertEqual(tx_reject_reason(stacks, {"rejectstacks": True}), "stacks")
+        self.assertIsNone(tx_reject_reason(stacks, {"rejectstacks": False}))
+        self.assertIsNone(tx_reject_reason(other, {"rejectstacks": True}))
+
+        envelope = _one_output(b"\x00\x63\x03ord\x68")
+        self.assertEqual(tx_reject_reason(envelope, {"rejectinscription": True}), "inscription")
+        self.assertIsNone(tx_reject_reason(envelope, {"rejectinscription": False}))
+        self.assertEqual(tx_reject_reason(envelope, {"rejecttokens": True}), "token")
+        self.assertEqual(tx_reject_reason(envelope, {"rejectinscription": True, "rejectdeadbranches": True}), "inscription")
+
     def test_many_signature_checks_use_the_nodes_count(self):
         raw = _one_output(b"\x00\x14" + b"\x11" * 20)
         flags = {"rejectmanysigs": True, "manysigs_min": 100}

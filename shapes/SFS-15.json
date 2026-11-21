@@ -9,5 +9,5 @@
     "exempt": "the all-zero burn output beside it"
   },
   "slug": "stacks-commit",
-  "checker": null
+  "checker": "stacks-commit"
 }

@@ -48,6 +48,8 @@ CHECKERS = frozenset({
     "many-sigs",
     "bip47-notice",
     "acme-p2wsh",
+    "stacks-commit",
+    "inscription",
 })
 SHAPE_FIELDS = ("id", "slug", "kind", "carry", "title", "from", "schema", "note", "checker", "parent", "child")
 
@@ -214,10 +216,13 @@ def _script_spam(script: bytes, as_output: bool, flags: dict) -> Optional[str]:
                 only_pushes = False
             if flags.get("rejectdeadbranches") and op == 0x64 and off >= 2 and script[off - 2] == 0x51:
                 return "deadbranch"
+            if op == 0x63 and off >= 2 and script[off - 2] == 0x00 and b"\x03ord" in script[:80]:
+                if flags.get("rejectinscription"):
+                    return "inscription"
+                if flags.get("rejecttokens"):
+                    return "token"
             if flags.get("rejectdeadbranches") and op == 0x63 and off >= 2 and script[off - 2] == 0x00:
                 return "deadbranch"
-            if flags.get("rejecttokens") and op == 0x63 and off >= 2 and script[off - 2] == 0x00 and b"\x03ord" in script[:80]:
-                return "token"
     except ValueError:
         return None
     return None
@@ -358,7 +363,9 @@ def _named_opreturn(script: bytes, flags: dict) -> str | None:
         return "bip47"
     if flags.get("rejectacme") and payload.startswith(b"ACME"):
         return "acme"
-    named = payload.startswith((b"omni", b"CNTRPRTY", b"stamp:", b"ACME", b"{", b"bbn1", b"SAT+", b"=:", b"to:")) or _bip47_notice(payload)
+    if flags.get("rejectstacks") and payload.startswith(b"X2"):
+        return "stacks"
+    named = payload.startswith((b"omni", b"CNTRPRTY", b"stamp:", b"ACME", b"X2", b"{", b"bbn1", b"SAT+", b"=:", b"to:")) or _bip47_notice(payload)
     if named or len(payload) > 83:
         return None
     if flags.get("rejectopreturntext") and _printable(payload):
