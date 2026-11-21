@@ -196,6 +196,55 @@ class RulesTest(unittest.TestCase):
         late = b"{" + (b"x" * 47) + b'"p":1'
         self.assertIsNone(tx_reject_reason(opreturn(late), {"rejecttokenmessages": True}))
 
+    def test_cat21_dead_branch_bare_envelope_and_bare_inscription(self):
+        plain = _one_output(b"\x00\x14" + b"\x11" * 20)
+        cat = plain[:-4] + (21).to_bytes(4, "little")
+        self.assertEqual(tx_reject_reason(cat, {"rejectparasites": True}), "parasite")
+        self.assertIsNone(tx_reject_reason(cat, {"rejectparasites": False}))
+        self.assertIsNone(tx_reject_reason(plain, {"rejectparasites": True}))
+
+        false_if = _one_output(b"\x00\x63")
+        true_notif = _one_output(b"\x51\x64")
+        decided = _one_output(b"\x74\x92\x64")
+        self.assertEqual(tx_reject_reason(false_if, {"rejectdeadbranches": True}), "deadbranch")
+        self.assertEqual(tx_reject_reason(true_notif, {"rejectdeadbranches": True}), "deadbranch")
+        self.assertIsNone(tx_reject_reason(false_if, {"rejectdeadbranches": False}))
+        self.assertIsNone(tx_reject_reason(decided, {"rejectdeadbranches": True}))
+
+        envelope = _one_output(b"\x03abc\x75")
+        signed = _one_output(b"\x03abc\xac\x75")
+        self.assertEqual(tx_reject_reason(envelope, {"rejectbareenvelopes": True}), "bareenvelope")
+        self.assertIsNone(tx_reject_reason(envelope, {"rejectbareenvelopes": False}))
+        self.assertIsNone(tx_reject_reason(signed, {"rejectbareenvelopes": True}))
+
+        bare = _one_output(b"\x03ord\x6d")
+        wrapped = _one_output(b"\x00\x63\x03ord\x68\x6d")
+        self.assertEqual(tx_reject_reason(bare, {"rejectbareinscription": True}), "bareinscription")
+        self.assertIsNone(tx_reject_reason(bare, {"rejectbareinscription": False}))
+        self.assertIsNone(tx_reject_reason(wrapped, {"rejectbareinscription": True}))
+
+    def test_bip47_notice_and_acme_tag(self):
+        def opreturn(payload: bytes) -> bytes:
+            script = b"\x6a\x4c" + bytes([len(payload)]) + payload if len(payload) > 75 else b"\x6a" + bytes([len(payload)]) + payload
+            return _one_output(script)
+
+        code = bytes([0x01, 0x00, 0x02]) + b"\x11" * 32 + b"\x22" * 32 + b"\x00" * 13
+        self.assertEqual(len(code), 80)
+        notice = opreturn(code)
+        short = opreturn(code[:-1])
+        bad_sign = opreturn(bytes([0x01, 0x00, 0x04]) + code[3:])
+        self.assertEqual(tx_reject_reason(notice, {"rejectbip47": True}), "bip47")
+        self.assertIsNone(tx_reject_reason(notice, {"rejectbip47": False}))
+        self.assertIsNone(tx_reject_reason(short, {"rejectbip47": True}))
+        self.assertIsNone(tx_reject_reason(bad_sign, {"rejectbip47": True}))
+
+        acme = opreturn(b"ACME")
+        stamp = opreturn(b"stamp:")
+        self.assertEqual(tx_reject_reason(acme, {"rejectacme": True}), "acme")
+        self.assertIsNone(tx_reject_reason(acme, {"rejectacme": False}))
+        self.assertIsNone(tx_reject_reason(acme, {"rejectstamps": True}))
+        self.assertIsNone(tx_reject_reason(stamp, {"rejectacme": True}))
+
     def test_many_signature_checks_use_the_nodes_count(self):
         raw = _one_output(b"\x00\x14" + b"\x11" * 20)
         flags = {"rejectmanysigs": True, "manysigs_min": 100}

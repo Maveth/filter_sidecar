@@ -11,5 +11,5 @@
     }
   },
   "slug": "bip47-notice",
-  "checker": null
+  "checker": "bip47-notice"
 }

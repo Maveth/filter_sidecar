@@ -46,6 +46,8 @@ CHECKERS = frozenset({
     "babylon-tag",
     "core-dao-tag",
     "many-sigs",
+    "bip47-notice",
+    "acme-p2wsh",
 })
 SHAPE_FIELDS = ("id", "slug", "kind", "carry", "title", "from", "schema", "note", "checker", "parent", "child")
 
@@ -352,7 +354,11 @@ def _named_opreturn(script: bytes, flags: dict) -> str | None:
         return "babylon"
     if flags.get("rejectcoredao") and payload.startswith(b"SAT+"):
         return "coredao"
-    named = payload.startswith((b"omni", b"CNTRPRTY", b"stamp:", b"{", b"bbn1", b"SAT+", b"=:", b"to:"))
+    if flags.get("rejectbip47") and _bip47_notice(payload):
+        return "bip47"
+    if flags.get("rejectacme") and payload.startswith(b"ACME"):
+        return "acme"
+    named = payload.startswith((b"omni", b"CNTRPRTY", b"stamp:", b"ACME", b"{", b"bbn1", b"SAT+", b"=:", b"to:")) or _bip47_notice(payload)
     if named or len(payload) > 83:
         return None
     if flags.get("rejectopreturntext") and _printable(payload):
@@ -360,6 +366,11 @@ def _named_opreturn(script: bytes, flags: dict) -> str | None:
     if flags.get("rejectopreturndata") and payload and not _printable(payload):
         return "opreturndata"
     return None
+
+
+def _bip47_notice(payload: bytes) -> bool:
+    """BIP47 v1 payment code: 80 bytes, version 1, compressed pubkey sign."""
+    return len(payload) == 80 and payload[0] == 0x01 and payload[2] in (0x02, 0x03)
 
 
 def _bare_inscription(script: bytes) -> bool:

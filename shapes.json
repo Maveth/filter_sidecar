@@ -723,7 +723,7 @@
         }
       },
       "slug": "bip47-notice",
-      "checker": null
+      "checker": "bip47-notice"
     },
     {
       "id": "SFS-17",
@@ -737,7 +737,7 @@
       },
       "note": "Four changed bytes walk past the stamp: check.",
       "slug": "acme-p2wsh",
-      "checker": null
+      "checker": "acme-p2wsh"
     },
     {
       "id": "SFS-18",

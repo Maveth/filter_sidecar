@@ -7,6 +7,8 @@
   "rejectrunestones": true,
   "rejectcounterparty": true,
   "rejectstamps": true,
+  "rejectbip47": false,
+  "rejectacme": false,
   "rejectparasites": true,
   "permitbaremultisig": false,
   "permitbarepubkey": false,

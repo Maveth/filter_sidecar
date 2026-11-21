@@ -177,6 +177,8 @@ RULE_FIELDS = (
     {"key": "rejectswapmemo", "type": "bool", "label": "Swap memo", "help": "Mark an OP_RETURN that starts with =: or to:."},
     {"key": "rejectbabylon", "type": "bool", "label": "Babylon tag", "help": "Mark an OP_RETURN that starts with bbn1."},
     {"key": "rejectcoredao", "type": "bool", "label": "Core DAO tag", "help": "Mark an OP_RETURN that starts with SAT+."},
+    {"key": "rejectbip47", "type": "bool", "label": "BIP47 notification", "help": "Mark an 80-byte OP_RETURN payment code, version 1, with a compressed key."},
+    {"key": "rejectacme", "type": "bool", "label": "ACME tag", "help": "Mark an OP_RETURN that starts with ACME. The stamp: prefix is a different switch."},
     {"key": "rejectbareinscription", "type": "bool", "label": "Bare inscription", "help": "Mark a script that drops an ord tag with OP_2DROP and is not inside OP_FALSE OP_IF."},
     {"key": "rejectmanysigs", "type": "bool", "label": "Many signatures", "help": "Mark a transaction whose signature-check count is at least the slider."},
     {"key": "manysigs_min", "type": "int", "label": "Signature checks", "help": "Mark when the signature-check count is at least this."},

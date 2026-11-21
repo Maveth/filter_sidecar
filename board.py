@@ -50,6 +50,8 @@ LIVE_RULE = {
     "babylon-tag": "rejectbabylon",
     "core-dao-tag": "rejectcoredao",
     "bare-inscription": "rejectbareinscription",
+    "bip47-notice": "rejectbip47",
+    "acme-p2wsh": "rejectacme",
     "many-sigs": "rejectmanysigs",
     "dust-sweep": "whitelist_dust_sweep",
     "lightning-anchor-sweep": "whitelist_lightning_anchor_sweep",
@@ -151,7 +153,9 @@ PREVIEW = {
     "swap-memo": ("swapmemo", {}),
     "babylon-tag": ("babylon", {}),
     "core-dao-tag": ("coredao", {}),
-    "bare-inscription": ("bareinscription", {}),
+    "bare-inscription": ("bareinscription", {"rejectbareinscription": True}),
+    "bip47-notice": ("bip47", {"rejectbip47": True}),
+    "acme-p2wsh": ("acme", {"rejectacme": True}),
     "many-sigs": ("manysigs", {}),
 }
 
@@ -830,6 +834,8 @@ def _silence(flags: dict, reason: str) -> dict | None:
         "babylon": "rejectbabylon",
         "coredao": "rejectcoredao",
         "bareinscription": "rejectbareinscription",
+        "bip47": "rejectbip47",
+        "acme": "rejectacme",
         "manysigs": "rejectmanysigs",
         "deadbranch": "rejectdeadbranches",
         "bareenvelope": "rejectbareenvelopes",
