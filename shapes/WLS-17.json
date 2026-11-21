@@ -9,7 +9,7 @@
     "kind": "P2WSH",
     "knots_name": "boltz-swap"
   },
-  "note": "The Boltz submarine swap. Other hash-or-timelock swaps are WLS-18. This row is a name. The check is not written. Not an insert package.",
+  "note": "The check matches SIZE, the number 32, EQUAL, IF, HASH160, a 20-byte hash, EQUALVERIFY, a compressed key, ELSE, DROP, a small delay, CLTV, DROP, a compressed key, ENDIF, CHECKSIG. Other hash-or-timelock swaps are WLS-18. Not an insert package.",
   "slug": "boltz-swap",
-  "checker": null
+  "checker": "boltz-swap"
 }

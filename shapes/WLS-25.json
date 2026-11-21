@@ -12,7 +12,7 @@
     ],
     "knots_names": ["tagged-key", "tagged-2of2", "key-then-commitment"]
   },
-  "note": "A key leaf that ends in a short tag or commitment. Knots #481 counts that push as data and still treats the leaf as known. This row does not copy that count. This row is a name. The check is not written. Not an insert package.",
+  "note": "The check matches one or two 32-byte keys and CHECKSIGVERIFY followed by a push of 1 to 32 bytes, or one 32-byte key, CHECKSIG, IF, a push of 1 to 32 bytes, ENDIF. It does not copy a data-byte count. Not an insert package.",
   "slug": "tagged-key",
-  "checker": null
+  "checker": "tagged-key"
 }

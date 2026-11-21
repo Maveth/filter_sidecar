@@ -651,5 +651,126 @@ class RulesTest(unittest.TestCase):
             self.assertTrue(sidecar.load_json(path)["rejecttokens"])
 
 
+    def test_known_script_whitelists(self):
+        from spamcore import _known_script, _p2sh
+
+        def key(n: int) -> bytes:
+            return b"\x21" + bytes([2]) + bytes([n]) * 32
+
+        def xonly(n: int) -> bytes:
+            return b"\x20" + bytes([n]) * 32
+
+        pay = b"\x00\x14" + b"\x22" * 20
+        control = b"\xc0" + b"\x33" * 32
+        house = {"rejectfakemultisig": True, "rejectdeadbranches": True, "sift_unverified_key": True}
+        example = json.loads(Path("rules.json.example").read_text())
+
+        def kept(script: bytes, slug: str, flag: str, **kwargs) -> None:
+            self.assertEqual(_known_script(script), slug)
+            self.assertIs(example[flag], False)
+            on = {**house, flag: True}
+            self.assertIsNone(tx_reject_reason(_witness_script_tx(script, pay, **kwargs), on))
+            broken = b"\x00\x63" + script
+            self.assertEqual(_known_script(broken), None)
+            self.assertEqual(tx_reject_reason(_witness_script_tx(broken, pay, **kwargs), on), "deadbranch")
+
+        leading = b"\x51\xb2\x75\x51"
+        trailing = b"\x51\x02\x80\x00\xb1\x75"
+        kept(leading, "miniscript-behind-check", "whitelist_miniscript_behind_check")
+        kept(trailing, "miniscript-behind-check", "whitelist_miniscript_behind_check")
+        self.assertIsNone(_known_script(b"\x51\xb2\x75\x52"))
+
+        local = b"\x63" + key(1) + b"\x67\x51\xb2\x75" + key(2) + b"\x68\xac"
+        kept(local, "bolt3-to-local", "whitelist_bolt3_to_local")
+        self.assertIsNone(_known_script(b"\x63" + b"\x21" + b"\x04" + b"\x11" * 32 + local[35:]))
+
+        revoke = xonly(1) + b"\x75" + xonly(2) + b"\xac"
+        kept(revoke, "lnd-revocation", "whitelist_lnd_revocation", control=control)
+        self.assertIsNone(_known_script(xonly(1) + b"\x75" + key(2) + b"\xac"))
+
+        csv_form = b"\x63\x51\xb2\x75\x67" + key(3) + b"\xad\x68" + key(4) + b"\xac"
+        cltv_form = b"\x63\x51\xb1\x75\x67" + key(3) + b"\xad\x68" + key(4) + b"\xac"
+        kept(csv_form, "phoenix-swap-in", "whitelist_phoenix_swap_in")
+        kept(cltv_form, "phoenix-swap-in", "whitelist_phoenix_swap_in")
+        self.assertIsNone(_known_script(b"\x63\x51\xb2\x75\x67" + key(3) + b"\xac\x68" + key(4) + b"\xac"))
+
+        boltz = b"\x82\x01\x20\x87\x63\xa9\x14" + b"\xab" * 20 + b"\x88" + key(5) + b"\x67\x75\x51\xb1\x75" + key(6) + b"\x68\xac"
+        kept(boltz, "boltz-swap", "whitelist_boltz_swap")
+        self.assertIsNone(_known_script(b"\x82\x01\x20\x87\x63\xa8\x20" + b"\xab" * 32 + boltz[28:]))
+
+        chosen = b"\x01\x07\x88\x63" + key(7) + b"\xac\x67\x53" + b"".join(key(10 + n) for n in range(5)) + b"\x55\xae\x68"
+        kept(chosen, "selector-federation", "whitelist_selector_federation")
+        wide = b"\x01\x07\x88\x63" + key(7) + b"\xac\x67\x53" + b"".join(key(10 + n) for n in range(11)) + b"\x5b\xae\x68"
+        self.assertEqual(tx_reject_reason(_witness_script_tx(wide, pay), {**house, "whitelist_selector_federation": True}), "fakemultisig")
+
+        def push(data: bytes) -> bytes:
+            size = len(data)
+            if size <= 75:
+                return bytes([size]) + data
+            if size <= 255:
+                return bytes([76, size]) + data
+            return b"\x4d" + size.to_bytes(2, "little") + data
+
+        def multisig(count: int, uncompressed: bool = False) -> bytes:
+            body = bytes([0x50 + count])
+            for n in range(count):
+                if uncompressed:
+                    body += b"\x41" + b"\x04" + bytes([n + 1]) * 64
+                else:
+                    body += key(n + 1)
+            return body + bytes([0x50 + count, 0xAE])
+
+        eleven = multisig(11)
+        self.assertEqual(_known_script(eleven), "legacy-p2sh-multisig")
+        script_sig = b"\x00" + push(b"\x30" + b"\x11" * 70) + push(eleven)
+        raw = b"\x01\x00\x00\x00\x01"
+        raw += b"\x11" * 32 + b"\x00\x00\x00\x00" + _item(script_sig) + b"\xff\xff\xff\xff"
+        raw += b"\x01" + (1000).to_bytes(8, "little") + _item(pay) + b"\x00\x00\x00\x00"
+        parent = _p2sh(eleven)
+        flagged = {**house, "whitelist_legacy_p2sh_multisig": True}
+        self.assertEqual(tx_reject_reason(raw, house, prevouts=[parent]), "fakemultisig")
+        self.assertIsNone(tx_reject_reason(raw, flagged, prevouts=[parent]))
+        self.assertEqual(tx_reject_reason(raw, flagged, prevouts=[b"\x00"]), "fakemultisig")
+        self.assertEqual(tx_reject_reason(raw, flagged), "fakemultisig")
+        self.assertEqual(tx_reject_reason(_witness_script_tx(eleven, pay), flagged), "fakemultisig")
+        small = multisig(2)
+        self.assertEqual(_known_script(small), "legacy-p2sh-multisig")
+        self.assertIsNone(_known_script(multisig(2) + b"\x75"))
+        bare = multisig(11, uncompressed=True)
+        self.assertEqual(_known_script(bare), "legacy-p2sh-multisig")
+        bare_sig = b"\x00" + push(bare)
+        bare_tx = b"\x01\x00\x00\x00\x01" + b"\x11" * 32 + b"\x00\x00\x00\x00" + _item(bare_sig) + b"\xff\xff\xff\xff"
+        bare_tx += b"\x01" + (1000).to_bytes(8, "little") + _item(pay) + b"\x00\x00\x00\x00"
+        self.assertIsNone(tx_reject_reason(bare_tx, house, prevouts=[_p2sh(bare)]))
+
+        def threshold(adds: int, compare: bytes = b"") -> bytes:
+            body = xonly(1) + b"\xad" + xonly(2) + b"\xac"
+            for n in range(adds):
+                body += xonly(3 + n) + b"\xba"
+            return body + compare
+
+        leaf = threshold(12, bytes([0x51]) + b"\x9c")
+        greater = threshold(1, bytes([0x52]) + b"\xa2")
+        plain = threshold(1)
+        equal = threshold(1, bytes([0x51]) + b"\x87")
+        for script in (leaf, greater, plain, equal):
+            self.assertEqual(_known_script(script), "tapscript-threshold")
+        flagged = {**house, "whitelist_tapscript_threshold": True}
+        spent = _witness_script_tx(leaf, pay, satisfaction=[b"\x11" * 64], control=control)
+        self.assertEqual(tx_reject_reason(spent, house), "unverifiedkey")
+        self.assertIsNone(tx_reject_reason(spent, flagged))
+        self.assertEqual(tx_reject_reason(_witness_script_tx(leaf + b"\x75", pay, satisfaction=[b"\x11" * 64], control=control), flagged), "unverifiedkey")
+        honest = _witness_script_tx(plain, pay, satisfaction=[b"\x11" * 64, b"\x22" * 64], control=control)
+        self.assertIsNone(tx_reject_reason(honest, house))
+
+        one = xonly(9) + b"\xad\x04tag!"
+        two = xonly(9) + b"\xad" + xonly(8) + b"\xad" + b"\x20" + b"\x44" * 32
+        branch = xonly(9) + b"\xac\x63\x04tag!\x68"
+        kept(one, "tagged-key", "whitelist_tagged_key", control=control)
+        kept(two, "tagged-key", "whitelist_tagged_key", control=control)
+        kept(branch, "tagged-key", "whitelist_tagged_key", control=control)
+        self.assertIsNone(_known_script(xonly(9) + b"\xad" + b"\x21" + b"\x11" * 33))
+
+
 if __name__ == "__main__":
     unittest.main()

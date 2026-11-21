@@ -248,9 +248,9 @@
           "batch consolidations"
         ]
       },
-      "note": "Knots #481 names the forms miniscript-timelock, miniscript-hash, miniscript-timelock-hash, and anyone-after-checks. The leaf inside an Ark hop is this class. WLS-1 does not use it: the same shape is also JoinMarket and Boltz, and those must not be inserted as an Ark package. This row is a name. The check is not written. Not an insert package.",
+      "note": "The check matches only a lone OP_TRUE with a small number, CSV or CLTV, and DROP, before the OP_TRUE or after it. It is not a miniscript parser, and it does not match a hash lock or a bare key. The same bytes also appear in JoinMarket and Boltz, so this row does not insert an Ark package.",
       "slug": "miniscript-behind-check",
-      "checker": null
+      "checker": "miniscript-behind-check"
     },
     {
       "id": "WLS-13",
@@ -263,9 +263,9 @@
         "kind": "P2WSH, and the same bytes in P2SH",
         "knots_name": "ln-to-local"
       },
-      "note": "The second-stage output of a BOLT 3 local commitment. The anchor sweep is WLS-6. This row is a name. The check is not written. Not an insert package.",
+      "note": "The check matches IF, a compressed key, ELSE, a small delay, CSV, DROP, a compressed key, ENDIF, CHECKSIG. The same bytes in a P2SH redeem script match too. The anchor sweep is WLS-6. Not an insert package.",
       "slug": "bolt3-to-local",
-      "checker": null
+      "checker": "bolt3-to-local"
     },
     {
       "id": "WLS-14",
@@ -303,9 +303,9 @@
         "kind": "tapscript",
         "knots_name": "ln-taproot-revoke"
       },
-      "note": "The revocation leaf of an LND simple-taproot channel. The local key is dropped. The revocation key signs. The anchor leaf of that channel is the bare timelock on WLS-7. This row is a name. The check is not written. Not an insert package.",
+      "note": "The check matches a 32-byte key, DROP, a 32-byte key, and CHECKSIG. That is the revocation leaf of an LND simple-taproot channel. The anchor leaf of that channel is the bare timelock on WLS-7. Not an insert package.",
       "slug": "lnd-revocation",
-      "checker": null
+      "checker": "lnd-revocation"
     },
     {
       "id": "WLS-16",
@@ -324,9 +324,9 @@
           "phoenix-swap-in-cltv"
         ]
       },
-      "note": "ACINQ Phoenix swap-in, version 1, in the CSV refund form and the CLTV refund form. This row is a name. The check is not written. Not an insert package.",
+      "note": "The check matches IF, a small delay, CSV or CLTV, DROP, ELSE, a compressed key, CHECKSIGVERIFY, ENDIF, a compressed key, CHECKSIG. That is Phoenix swap-in version 1, in both refund forms. Not an insert package.",
       "slug": "phoenix-swap-in",
-      "checker": null
+      "checker": "phoenix-swap-in"
     },
     {
       "id": "WLS-17",
@@ -339,9 +339,9 @@
         "kind": "P2WSH",
         "knots_name": "boltz-swap"
       },
-      "note": "The Boltz submarine swap. Other hash-or-timelock swaps are WLS-18. This row is a name. The check is not written. Not an insert package.",
+      "note": "The check matches SIZE, the number 32, EQUAL, IF, HASH160, a 20-byte hash, EQUALVERIFY, a compressed key, ELSE, DROP, a small delay, CLTV, DROP, a compressed key, ENDIF, CHECKSIG. Other hash-or-timelock swaps are WLS-18. Not an insert package.",
       "slug": "boltz-swap",
-      "checker": null
+      "checker": "boltz-swap"
     },
     {
       "id": "WLS-18",
@@ -398,9 +398,9 @@
         "kind": "P2WSH",
         "knots_name": "selector-federation"
       },
-      "note": "A selector push chooses one key or a 3-of-5. This row is a name. The check is not written. Not an insert package.",
+      "note": "The check matches a push of at most 32 bytes, EQUALVERIFY, IF, a compressed key, CHECKSIG, ELSE, OP_3, five compressed keys, OP_5, CHECKMULTISIG, ENDIF. Not an insert package.",
       "slug": "selector-federation",
-      "checker": null
+      "checker": "selector-federation"
     },
     {
       "id": "WLS-21",
@@ -445,9 +445,9 @@
         "keys": "33 or 65 bytes, and only in P2SH",
         "knots_name": "legacy-multisig"
       },
-      "note": "A bare legacy multisig in a P2SH redeem script. A 65-byte key in P2WSH is not a key under this policy, because segwit will not let an uncompressed key sign, so that script is not this row. This row is a name. The check is not written. Not an insert package.",
+      "note": "The check matches m, then that many compressed or uncompressed keys, then n, then CHECKMULTISIG. m and n are OP_1 through OP_16. It clears fake-multisig only when that script is the P2SH redeem script for the input. A witness script with the same bytes stays marked. A 65-byte key in a witness is not this row. Not an insert package.",
       "slug": "legacy-p2sh-multisig",
-      "checker": null
+      "checker": "legacy-p2sh-multisig"
     },
     {
       "id": "WLS-24",
@@ -460,9 +460,9 @@
         "kind": "tapscript",
         "knots_name": "checksigadd-threshold"
       },
-      "note": "A tapscript k-of-n written with CHECKSIGADD. The threshold compare may be GREATERTHANOREQUAL instead of NUMEQUAL. Without the compare, the signature count itself is the result. This row is a name. The check is not written. Not an insert package.",
+      "note": "The check matches 32-byte keys: any number of CHECKSIGVERIFY, one CHECKSIG, then at least one CHECKSIGADD, at most 20 keys in all. The threshold compare may be GREATERTHANOREQUAL, NUMEQUAL, or EQUAL, and it may be absent. This clears the unverified-key mark on that leaf. Not an insert package.",
       "slug": "tapscript-threshold",
-      "checker": null
+      "checker": "tapscript-threshold"
     },
     {
       "id": "WLS-25",
@@ -482,9 +482,9 @@
           "key-then-commitment"
         ]
       },
-      "note": "A key leaf that ends in a short tag or commitment. Knots #481 counts that push as data and still treats the leaf as known. This row does not copy that count. This row is a name. The check is not written. Not an insert package.",
+      "note": "The check matches one or two 32-byte keys and CHECKSIGVERIFY followed by a push of 1 to 32 bytes, or one 32-byte key, CHECKSIG, IF, a push of 1 to 32 bytes, ENDIF. It does not copy a data-byte count. Not an insert package.",
       "slug": "tagged-key",
-      "checker": null
+      "checker": "tagged-key"
     },
     {
       "id": "SFS-1",

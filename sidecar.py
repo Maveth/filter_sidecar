@@ -25,7 +25,7 @@ def _stamp(*args, **kwargs):
 
 print = _stamp
 
-from spamcore import ANCHOR_SCRIPT, package_from_entry, package_paid_clean, prevout_scripts, single_opreturn, tx_input_outpoints, tx_is_ark_whitelist, whitelist_items, tx_reject_reason, _tx_parts
+from spamcore import ANCHOR_SCRIPT, package_from_entry, package_paid_clean, prevout_scripts, single_opreturn, tx_input_outpoints, tx_is_ark_whitelist, wants_prevouts, whitelist_items, tx_reject_reason, _tx_parts
 
 # Larger than a block of fees, so a child cannot pay a marked parent back in.
 # Satoshis. Knots adds this to the fee it uses for mining selection only.
@@ -412,7 +412,7 @@ def scan(
     ark_packages: list[tuple[str, str]] = packages if packages is not None else []
     paid_packages: list[tuple[str, str]] = paid if paid is not None else []
     parents: dict[str, str | None] = {}
-    want_parents = flags.get("whitelist_lightning_anchor_sweep") is True or flags.get("whitelist_p2a_sweep") is True
+    want_parents = wants_prevouts(flags)
 
     def parent_hex(txid: str) -> str | None:
         if txid not in parents:

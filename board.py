@@ -64,6 +64,15 @@ LIVE_RULE = {
     "commitment-32": "whitelist_commitment_32",
     "empty-opreturn": "whitelist_empty_opreturn",
     "consolidation": "whitelist_consolidation",
+    "miniscript-behind-check": "whitelist_miniscript_behind_check",
+    "bolt3-to-local": "whitelist_bolt3_to_local",
+    "lnd-revocation": "whitelist_lnd_revocation",
+    "phoenix-swap-in": "whitelist_phoenix_swap_in",
+    "boltz-swap": "whitelist_boltz_swap",
+    "selector-federation": "whitelist_selector_federation",
+    "legacy-p2sh-multisig": "whitelist_legacy_p2sh_multisig",
+    "tapscript-threshold": "whitelist_tapscript_threshold",
+    "tagged-key": "whitelist_tagged_key",
 }
 
 # A spam row names the whitelist that can put a matching transaction back.
@@ -75,7 +84,8 @@ EXEMPTS = {
     "opreturn-text": ("commitment-32", "empty-opreturn", "dust-sweep", "lightning-anchor-sweep", "p2a-sweep"),
     "opreturn-data": ("commitment-32", "empty-opreturn", "dust-sweep", "lightning-anchor-sweep", "p2a-sweep"),
     "opreturn-stack": ("commitment-32", "empty-opreturn"),
-    "fake-multisig": ("powpeg-flyover",),
+    "fake-multisig": ("powpeg-flyover", "legacy-p2sh-multisig"),
+    "unverified-key": ("tapscript-threshold",),
 }
 
 # A Knots option that defaults on. The shape cannot be turned off while this
@@ -784,7 +794,7 @@ def preview_mempool(log_path: Path, rules: dict, shape_id: str, sat_vb: float | 
     entries, raws = _mempool(log_path)
     parents: dict[str, str | None] = {}
     node_box: dict = {}
-    need_parents = flags.get("whitelist_lightning_anchor_sweep") is True or flags.get("whitelist_p2a_sweep") is True
+    need_parents = spamcore.wants_prevouts(flags)
     hits = []
     for txid, entry in entries.items():
         raw_hex = raws.get(txid)
@@ -929,7 +939,7 @@ def _bring_back(log_path: Path, rules: dict, shape_id: str, proposal: dict | Non
     entries, raws = _mempool(log_path)
     parents: dict[str, str | None] = {}
     node_box: dict = {}
-    need_parents = shape_id in ("lightning-anchor-sweep", "p2a-sweep") or on.get("whitelist_lightning_anchor_sweep") is True or on.get("whitelist_p2a_sweep") is True
+    need_parents = shape_id in ("lightning-anchor-sweep", "p2a-sweep", "legacy-p2sh-multisig") or spamcore.wants_prevouts(on)
     only = []
     also = []
     cleared_names = []

@@ -9,7 +9,7 @@
     "kind": "P2WSH",
     "knots_name": "selector-federation"
   },
-  "note": "A selector push chooses one key or a 3-of-5. This row is a name. The check is not written. Not an insert package.",
+  "note": "The check matches a push of at most 32 bytes, EQUALVERIFY, IF, a compressed key, CHECKSIG, ELSE, OP_3, five compressed keys, OP_5, CHECKMULTISIG, ENDIF. Not an insert package.",
   "slug": "selector-federation",
-  "checker": null
+  "checker": "selector-federation"
 }

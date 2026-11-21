@@ -9,7 +9,7 @@
     "kind": "tapscript",
     "knots_name": "ln-taproot-revoke"
   },
-  "note": "The revocation leaf of an LND simple-taproot channel. The local key is dropped. The revocation key signs. The anchor leaf of that channel is the bare timelock on WLS-7. This row is a name. The check is not written. Not an insert package.",
+  "note": "The check matches a 32-byte key, DROP, a 32-byte key, and CHECKSIG. That is the revocation leaf of an LND simple-taproot channel. The anchor leaf of that channel is the bare timelock on WLS-7. Not an insert package.",
   "slug": "lnd-revocation",
-  "checker": null
+  "checker": "lnd-revocation"
 }

@@ -12,7 +12,7 @@
     "kind": "P2WSH",
     "knots_names": ["phoenix-swap-in", "phoenix-swap-in-cltv"]
   },
-  "note": "ACINQ Phoenix swap-in, version 1, in the CSV refund form and the CLTV refund form. This row is a name. The check is not written. Not an insert package.",
+  "note": "The check matches IF, a small delay, CSV or CLTV, DROP, ELSE, a compressed key, CHECKSIGVERIFY, ENDIF, a compressed key, CHECKSIG. That is Phoenix swap-in version 1, in both refund forms. Not an insert package.",
   "slug": "phoenix-swap-in",
-  "checker": null
+  "checker": "phoenix-swap-in"
 }

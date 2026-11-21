@@ -9,7 +9,7 @@
     "kind": "tapscript",
     "knots_name": "checksigadd-threshold"
   },
-  "note": "A tapscript k-of-n written with CHECKSIGADD. The threshold compare may be GREATERTHANOREQUAL instead of NUMEQUAL. Without the compare, the signature count itself is the result. This row is a name. The check is not written. Not an insert package.",
+  "note": "The check matches 32-byte keys: any number of CHECKSIGVERIFY, one CHECKSIG, then at least one CHECKSIGADD, at most 20 keys in all. The threshold compare may be GREATERTHANOREQUAL, NUMEQUAL, or EQUAL, and it may be absent. This clears the unverified-key mark on that leaf. Not an insert package.",
   "slug": "tapscript-threshold",
-  "checker": null
+  "checker": "tapscript-threshold"
 }

@@ -10,7 +10,7 @@
     "also": "a lone uncompressed key behind those checks, in P2SH only",
     "seen_in": ["Ark hop leaves", "JoinMarket", "Boltz claims", "Core DAO", "batch consolidations"]
   },
-  "note": "Knots #481 names the forms miniscript-timelock, miniscript-hash, miniscript-timelock-hash, and anyone-after-checks. The leaf inside an Ark hop is this class. WLS-1 does not use it: the same shape is also JoinMarket and Boltz, and those must not be inserted as an Ark package. This row is a name. The check is not written. Not an insert package.",
+  "note": "The check matches only a lone OP_TRUE with a small number, CSV or CLTV, and DROP, before the OP_TRUE or after it. It is not a miniscript parser, and it does not match a hash lock or a bare key. The same bytes also appear in JoinMarket and Boltz, so this row does not insert an Ark package.",
   "slug": "miniscript-behind-check",
-  "checker": null
+  "checker": "miniscript-behind-check"
 }

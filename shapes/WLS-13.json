@@ -9,7 +9,7 @@
     "kind": "P2WSH, and the same bytes in P2SH",
     "knots_name": "ln-to-local"
   },
-  "note": "The second-stage output of a BOLT 3 local commitment. The anchor sweep is WLS-6. This row is a name. The check is not written. Not an insert package.",
+  "note": "The check matches IF, a compressed key, ELSE, a small delay, CSV, DROP, a compressed key, ENDIF, CHECKSIG. The same bytes in a P2SH redeem script match too. The anchor sweep is WLS-6. Not an insert package.",
   "slug": "bolt3-to-local",
-  "checker": null
+  "checker": "bolt3-to-local"
 }

@@ -22,6 +22,15 @@ CHECKERS = frozenset({
     "p2a-sweep",
     "powpeg-flyover",
     "consolidation",
+    "miniscript-behind-check",
+    "bolt3-to-local",
+    "lnd-revocation",
+    "phoenix-swap-in",
+    "boltz-swap",
+    "selector-federation",
+    "legacy-p2sh-multisig",
+    "tapscript-threshold",
+    "tagged-key",
     "cat21",
     "runestone",
     "counterparty",
@@ -583,6 +592,243 @@ def _powpeg_excuses(script: bytes, flags: dict) -> bool:
     return flags.get("whitelist_powpeg") is True and _is_powpeg_script(script)
 
 
+def wants_prevouts(flags: dict) -> bool:
+    """True when a whitelist needs the script of each input's parent output."""
+    return (
+        flags.get("whitelist_lightning_anchor_sweep") is True
+        or flags.get("whitelist_p2a_sweep") is True
+        or flags.get("whitelist_legacy_p2sh_multisig") is True
+    )
+
+
+def _positive_number(op: int, data: bytes) -> int | None:
+    """OP_0, OP_1 through OP_16, or a minimal non-negative push of at most 3 bytes."""
+    if op == 0x00:
+        return 0
+    if 0x51 <= op <= 0x60:
+        return op - 0x50
+    if not (1 <= op <= 3 and len(data) == op):
+        return None
+    if data[-1] & 0x80:
+        return None
+    if len(data) > 1 and data[-1] == 0x00 and not (data[-2] & 0x80):
+        return None
+    return int.from_bytes(data, "little")
+
+
+def _compressed_key(op: int, data: bytes) -> bool:
+    return op == 0x21 and len(data) == 33 and data[0] in (2, 3)
+
+
+def _legacy_key(op: int, data: bytes) -> bool:
+    """A legacy pubkey: compressed, or uncompressed and starting with 0x04."""
+    if _compressed_key(op, data):
+        return True
+    return op == 0x41 and len(data) == 65 and data[0] == 4
+
+
+def _xonly_key(op: int, data: bytes) -> bool:
+    return op == 0x20 and len(data) == 32
+
+
+def _direct_push(op: int, data: bytes, limit: int) -> bool:
+    return 1 <= op <= limit and op == len(data)
+
+
+def _is_timelock_true(ops: list[tuple[int, bytes]]) -> bool:
+    """OP_TRUE with one small delay, CSV or CLTV, and DROP, on either side."""
+    if len(ops) != 4:
+        return False
+    def arm(number, lock, drop) -> bool:
+        return _positive_number(number[0], number[1]) is not None and lock[0] in (0xB1, 0xB2) and drop[0] == 0x75
+    if ops[3][0] == 0x51 and arm(ops[0], ops[1], ops[2]):
+        return True
+    return ops[0][0] == 0x51 and arm(ops[1], ops[2], ops[3])
+
+
+def _is_bolt3_to_local(ops: list[tuple[int, bytes]]) -> bool:
+    """IF key ELSE delay CSV DROP key ENDIF CHECKSIG. Both keys are compressed."""
+    return (
+        len(ops) == 9
+        and ops[0][0] == 0x63 and _compressed_key(*ops[1])
+        and ops[2][0] == 0x67 and _positive_number(*ops[3]) is not None
+        and ops[4][0] == 0xB2 and ops[5][0] == 0x75 and _compressed_key(*ops[6])
+        and ops[7][0] == 0x68 and ops[8][0] == 0xAC
+    )
+
+
+def _is_lnd_revoke(ops: list[tuple[int, bytes]]) -> bool:
+    """32-byte key, DROP, 32-byte key, CHECKSIG."""
+    return (
+        len(ops) == 4
+        and _xonly_key(*ops[0]) and ops[1][0] == 0x75
+        and _xonly_key(*ops[2]) and ops[3][0] == 0xAC
+    )
+
+
+def _is_phoenix(ops: list[tuple[int, bytes]]) -> bool:
+    """IF delay CSV|CLTV DROP ELSE key CHECKSIGVERIFY ENDIF key CHECKSIG."""
+    return (
+        len(ops) == 10
+        and ops[0][0] == 0x63 and _positive_number(*ops[1]) is not None
+        and ops[2][0] in (0xB1, 0xB2) and ops[3][0] == 0x75
+        and ops[4][0] == 0x67 and _compressed_key(*ops[5]) and ops[6][0] == 0xAD
+        and ops[7][0] == 0x68 and _compressed_key(*ops[8]) and ops[9][0] == 0xAC
+    )
+
+
+def _is_boltz(ops: list[tuple[int, bytes]]) -> bool:
+    """SIZE 32 EQUAL IF HASH160 hash EQUALVERIFY key ELSE DROP delay CLTV DROP key ENDIF CHECKSIG."""
+    return (
+        len(ops) == 16
+        and ops[0][0] == 0x82 and ops[1] == (1, b"\x20") and ops[2][0] == 0x87
+        and ops[3][0] == 0x63 and ops[4][0] == 0xA9 and _direct_push(*ops[5], 20)
+        and ops[6][0] == 0x88 and _compressed_key(*ops[7])
+        and ops[8][0] == 0x67 and ops[9][0] == 0x75
+        and _positive_number(*ops[10]) is not None and ops[11][0] == 0xB1 and ops[12][0] == 0x75
+        and _compressed_key(*ops[13]) and ops[14][0] == 0x68 and ops[15][0] == 0xAC
+    )
+
+
+def _is_selector(ops: list[tuple[int, bytes]]) -> bool:
+    """A short push, EQUALVERIFY, IF key CHECKSIG ELSE OP_3 five keys OP_5 CHECKMULTISIG ENDIF."""
+    if len(ops) != 15 or not _direct_push(*ops[0], 32) or ops[1][0] != 0x88 or ops[2][0] != 0x63:
+        return False
+    if not _compressed_key(*ops[3]) or ops[4][0] != 0xAC or ops[5][0] != 0x67 or ops[6][0] != 0x53:
+        return False
+    if not all(_compressed_key(*ops[7 + n]) for n in range(5)):
+        return False
+    return ops[12][0] == 0x55 and ops[13][0] == 0xAE and ops[14][0] == 0x68
+
+
+def _is_legacy_multisig(ops: list[tuple[int, bytes]]) -> bool:
+    """m, that many 33-byte or 65-byte keys, n, CHECKMULTISIG. m and n are OP_1 through OP_16."""
+    if len(ops) < 4 or not (0x51 <= ops[0][0] <= 0x60) or ops[-1][0] != 0xAE:
+        return False
+    need = ops[0][0] - 0x50
+    total_op = ops[-2][0]
+    if not (0x51 <= total_op <= 0x60):
+        return False
+    total = total_op - 0x50
+    keys = ops[1:-2]
+    if need > total or len(keys) != total or not keys:
+        return False
+    return all(_legacy_key(op, data) for op, data in keys)
+
+
+def _is_tapscript_threshold(ops: list[tuple[int, bytes]]) -> bool:
+    """32-byte keys: CHECKSIGVERIFY, one CHECKSIG, then CHECKSIGADD, and an optional compare."""
+    index = 0
+    keys = 0
+    while index + 1 < len(ops) and _xonly_key(*ops[index]) and ops[index + 1][0] == 0xAD:
+        index += 2
+        keys += 1
+    if index + 1 >= len(ops) or not _xonly_key(*ops[index]) or ops[index + 1][0] != 0xAC:
+        return False
+    index += 2
+    keys += 1
+    adds = 0
+    while index + 1 < len(ops) and _xonly_key(*ops[index]) and ops[index + 1][0] == 0xBA:
+        index += 2
+        keys += 1
+        adds += 1
+    if adds < 1 or keys > 20:
+        return False
+    if index == len(ops):
+        return True
+    if index + 2 != len(ops) or ops[index + 1][0] not in (0xA2, 0x9C, 0x87):
+        return False
+    threshold = _positive_number(*ops[index])
+    return threshold is not None and 1 <= threshold <= keys
+
+
+def _is_tagged_key(ops: list[tuple[int, bytes]]) -> bool:
+    """One or two 32-byte keys and CHECKSIGVERIFY, then a short push. Or CHECKSIG IF push ENDIF."""
+    if len(ops) == 3 and _xonly_key(*ops[0]) and ops[1][0] == 0xAD and _direct_push(*ops[2], 32):
+        return True
+    if (
+        len(ops) == 5 and _xonly_key(*ops[0]) and ops[1][0] == 0xAD
+        and _xonly_key(*ops[2]) and ops[3][0] == 0xAD and _direct_push(*ops[4], 32)
+    ):
+        return True
+    return (
+        len(ops) == 5 and _xonly_key(*ops[0]) and ops[1][0] == 0xAC
+        and ops[2][0] == 0x63 and _direct_push(*ops[3], 32) and ops[4][0] == 0x68
+    )
+
+
+def _known_script(script: bytes) -> str | None:
+    """The whitelist slug whose whole script this is, or None."""
+    ops = _ops(script)
+    if not ops:
+        return None
+    if _is_timelock_true(ops):
+        return "miniscript-behind-check"
+    if _is_bolt3_to_local(ops):
+        return "bolt3-to-local"
+    if _is_lnd_revoke(ops):
+        return "lnd-revocation"
+    if _is_phoenix(ops):
+        return "phoenix-swap-in"
+    if _is_boltz(ops):
+        return "boltz-swap"
+    if _is_selector(ops):
+        return "selector-federation"
+    if _is_legacy_multisig(ops):
+        return "legacy-p2sh-multisig"
+    if _is_tapscript_threshold(ops):
+        return "tapscript-threshold"
+    if _is_tagged_key(ops):
+        return "tagged-key"
+    return None
+
+
+_KNOWN_FLAG = {
+    "miniscript-behind-check": "whitelist_miniscript_behind_check",
+    "bolt3-to-local": "whitelist_bolt3_to_local",
+    "lnd-revocation": "whitelist_lnd_revocation",
+    "phoenix-swap-in": "whitelist_phoenix_swap_in",
+    "boltz-swap": "whitelist_boltz_swap",
+    "selector-federation": "whitelist_selector_federation",
+    "legacy-p2sh-multisig": "whitelist_legacy_p2sh_multisig",
+    "tapscript-threshold": "whitelist_tapscript_threshold",
+    "tagged-key": "whitelist_tagged_key",
+}
+
+
+def _excused(script: bytes, flags: dict, *, p2sh: bool) -> bool:
+    """True when this whole script is an enabled whitelist. Legacy multisig only inside P2SH."""
+    name = _known_script(script)
+    if name is None or flags.get(_KNOWN_FLAG[name]) is not True:
+        return False
+    if name == "legacy-p2sh-multisig" and not p2sh:
+        return False
+    return True
+
+
+def _redeem_script(script_sig: bytes) -> bytes | None:
+    """The last push in a scriptSig, when every earlier item is also a push."""
+    ops = _ops(script_sig)
+    if not ops:
+        return None
+    for op, _data in ops[:-1]:
+        if op > 75:
+            return None
+    redeem = ops[-1][1]
+    if not redeem:
+        return None
+    return redeem
+
+
+def _clear_script_reason(script: bytes, reason: str | None, flags: dict, *, p2sh: bool) -> str | None:
+    """Drop a script mark when that script is an enabled whitelist, or a PowPeg."""
+    if reason == "fakemultisig" and _powpeg_excuses(script, flags):
+        return None
+    if reason in ("fakemultisig", "baremultisig", "deadbranch", "unverifiedkey") and _excused(script, flags, p2sh=p2sh):
+        return None
+    return reason
+
+
 def _p2wsh(script: bytes) -> bytes:
     return b"\x00\x20" + hashlib.sha256(script).digest()
 
@@ -1026,19 +1272,27 @@ def tx_reject_reason(
                     tapscript = len(stack) >= 2 and stack[-2] == script and _is_taproot_control_block(stack[-1])
                     satisfaction = stack[:-2] if tapscript else stack[:-1]
                     if flags.get("sift_unverified_key") is True and _unverified_key(script, satisfaction, tapscript):
-                        return "unverifiedkey"
+                        if _clear_script_reason(script, "unverifiedkey", flags, p2sh=False):
+                            return "unverifiedkey"
                     reason = _script_spam(script, False, flags)
-                    if reason == "fakemultisig" and _powpeg_excuses(script, flags):
-                        reason = None
+                    reason = _clear_script_reason(script, reason, flags, p2sh=False)
                     if reason:
                         return reason
             lock_off = off
-        for script in input_scripts:
-            reason = _script_spam(script, False, flags)
-            if reason == "fakemultisig" and _powpeg_excuses(script, flags):
-                reason = None
+        for index, script in enumerate(input_scripts):
+            reason = _clear_script_reason(script, _script_spam(script, False, flags), flags, p2sh=False)
             if reason:
                 return reason
+            redeem = _redeem_script(script)
+            if redeem is None:
+                continue
+            inner = _script_spam(redeem, False, flags)
+            if inner != "fakemultisig":
+                continue
+            prev = prevouts[index] if prevouts and index < len(prevouts) else None
+            p2sh = isinstance(prev, (bytes, bytearray)) and bytes(prev) == _p2sh(redeem)
+            if _clear_script_reason(redeem, inner, flags, p2sh=p2sh):
+                return "fakemultisig"
         if flags.get("rejectparasites") and lock_off + 4 <= len(raw):
             locktime = int.from_bytes(raw[lock_off:lock_off + 4], "little")
             if locktime == 21:

@@ -9,7 +9,7 @@
     "keys": "33 or 65 bytes, and only in P2SH",
     "knots_name": "legacy-multisig"
   },
-  "note": "A bare legacy multisig in a P2SH redeem script. A 65-byte key in P2WSH is not a key under this policy, because segwit will not let an uncompressed key sign, so that script is not this row. This row is a name. The check is not written. Not an insert package.",
+  "note": "The check matches m, then that many compressed or uncompressed keys, then n, then CHECKMULTISIG. m and n are OP_1 through OP_16. It clears fake-multisig only when that script is the P2SH redeem script for the input. A witness script with the same bytes stays marked. A 65-byte key in a witness is not this row. Not an insert package.",
   "slug": "legacy-p2sh-multisig",
-  "checker": null
+  "checker": "legacy-p2sh-multisig"
 }
