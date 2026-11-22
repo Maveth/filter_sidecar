@@ -17,3 +17,5 @@ jobs:
   build:
     if: github.event.pull_request.draft == false
     uses: Start9Labs/start-technologies/.github/workflows/build.yml@master
+    secrets:
+      DEV_KEY: ${{ secrets.DEV_KEY }}
