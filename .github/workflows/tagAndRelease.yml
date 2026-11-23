@@ -37,15 +37,12 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: sift_0.1.0_0
-          name: 'Sift StartOS #sift:0.1.0:0'
+          tag_name: sift_0.1.1_0
+          name: 'Sift StartOS #sift:0.1.1:0'
           body: |
             Sideload for StartOS 0.4. Depends on Bitcoin Knots `#knots:29.4.2:4` or newer.
 
-            | File | Use on |
-            |------|--------|
-            | sift_aarch64.s9pk | Raspberry Pi / ARM |
-            | sift_x86_64.s9pk | Intel/AMD |
+            `sift.s9pk` is the universal package. It runs on Intel/AMD and on ARM.
 
             Install Bitcoin first, then sideload this package. Open the Sift interface for the rules. The Connection action only picks the node.
           files: dist/*.s9pk
