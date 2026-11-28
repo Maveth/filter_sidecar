@@ -315,6 +315,44 @@ def _legacy_sigops(script: bytes) -> int:
     return count
 
 
+def _accurate_sigops(script: bytes) -> int:
+    """Sigops the way a witness script is counted: CHECKMULTISIG costs N, not 20."""
+    count = 0
+    off = 0
+    last = 0
+    while off < len(script):
+        op = script[off]
+        if 0 < op <= 0x4E:
+            push, off = _push_len(script, off)
+            if off + push > len(script):
+                return count
+            off += push
+            last = 0
+            continue
+        off += 1
+        if op in (0xAC, 0xAD, 0xBA):
+            count += 1
+        elif op in (0xAE, 0xAF):
+            count += (last - 0x50) if 0x51 <= last <= 0x60 else 20
+        last = op
+    return count
+
+
+def _witness_program(script: bytes) -> bool:
+    if not 4 <= len(script) <= 42:
+        return False
+    if script[0] != 0x00 and not (0x51 <= script[0] <= 0x60):
+        return False
+    return script[1] == len(script) - 2 and 2 <= script[1] <= 40
+
+
+def _p2wpkh_witness(items: list[bytes]) -> bool:
+    stack = items
+    if stack and stack[-1][:1] == b"\x50":
+        stack = stack[:-1]
+    return len(stack) == 2 and len(stack[1]) in (33, 65)
+
+
 def _datacarrier_bytes(script: bytes, fullcount: bool) -> int:
     if not script or script[0] != 0x6A:
         return 0
@@ -1363,6 +1401,7 @@ def tx_reject_reason(
                 if value < _dust_threshold(script, dust_rate) and not _is_consolidation(vin, outputs, flags):
                     return "dust"
         witness_scripts = []
+        witness_sigops = 0
         tapscript_len = 0
         lock_off = off
         if segwit:
@@ -1376,8 +1415,11 @@ def tx_reject_reason(
                 revealed = _tapscript(items)
                 if revealed is not None:
                     tapscript_len = max(tapscript_len, len(revealed))
+                if _p2wpkh_witness(items):
+                    witness_sigops += 1
                 script = _witness_script(items)
                 if script is not None:
+                    witness_sigops += _accurate_sigops(script)
                     witness_scripts.append(script)
                     stack = items
                     if len(stack) >= 2 and stack[-1][:1] == b"\x50" and _is_taproot_control_block(stack[-2]):
@@ -1427,6 +1469,17 @@ def tx_reject_reason(
                 return "baredatacarrier"
         if flags.get("permitbareanchor") is False and outputs and all(script == ANCHOR_SCRIPT for _value, script in outputs):
             return "bareanchor"
+        if not isinstance(sigops, int):
+            # Knots 29.5.1 does not put sigops on getmempoolentry. The witness
+            # script is already in the transaction, so count it here.
+            legacy = sum(_legacy_sigops(script) for script in input_scripts)
+            legacy += sum(_legacy_sigops(script) for _value, script in outputs)
+            nested = 0
+            for script in input_scripts:
+                redeem = _redeem_script(script)
+                if redeem and not _witness_program(redeem):
+                    nested += _accurate_sigops(redeem)
+            sigops = legacy * 4 + nested * 4 + witness_sigops
         per_sigop = flags.get("bytespersigop")
         if isinstance(per_sigop, int) and per_sigop > 0 and isinstance(sigops, int) and sigops > 0:
             vsize = max(1, int(weight) // 4) if isinstance(weight, int) and weight > 0 else len(raw)

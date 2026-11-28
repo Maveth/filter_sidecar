@@ -651,6 +651,21 @@ class RulesTest(unittest.TestCase):
             self.assertTrue(sidecar.load_json(path)["rejecttokens"])
 
 
+    def test_witness_multisig_sigops_are_counted_without_the_node(self):
+        # 1-of-11 P2WSH: ten 5-byte pushes, then the real key. Knots accepts it.
+        # getmempoolentry has no sigop field, so the count has to come from the witness.
+        script = b"\x51"
+        for n in range(10):
+            script += b"\x05" + bytes([n + 1]) * 5
+        script += b"\x21" + b"\x02" + b"\x11" * 32 + b"\x5b\xae"
+        pay = b"\x00\x14" + b"\x22" * 20
+        raw = _witness_script_tx(script, pay, satisfaction=[b"", b"\x30" + b"\x11" * 70])
+        self.assertEqual(spamcore._accurate_sigops(script), 11)
+        flags = {"bytespersigop": 20}
+        self.assertEqual(tx_reject_reason(raw, flags, weight=400), "bytespersigop")
+        self.assertIsNone(tx_reject_reason(raw, flags, weight=4000))
+        self.assertIsNone(tx_reject_reason(raw, {"bytespersigop": 0}, weight=400))
+
     def test_known_script_whitelists(self):
         from spamcore import _known_script, _p2sh
 
