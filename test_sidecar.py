@@ -402,6 +402,15 @@ class RulesTest(unittest.TestCase):
         self.assertIsNone(tx_reject_reason(_witness_script_tx(prefixed, pay), on))
         self.assertEqual(tx_reject_reason(_witness_script_tx(peg, pay), {"rejectfakemultisig": True}), "fakemultisig")
         self.assertEqual(tx_reject_reason(_witness_script_tx(bare, pay), on), "fakemultisig")
+        ten = multisig(10)
+        self.assertIsNone(tx_reject_reason(_witness_script_tx(ten, pay), {"rejectfakemultisig": True}))
+        self.assertEqual(
+            tx_reject_reason(_witness_script_tx(ten, pay), {"rejectfakemultisig": True, "fakemultisig_keys": 5}),
+            "fakemultisig",
+        )
+        self.assertIsNone(
+            tx_reject_reason(_witness_script_tx(ten, pay), {"rejectfakemultisig": True, "fakemultisig_keys": 40}),
+        )
 
     def test_an_unverified_key_is_marked_with_the_fake_multisig_check(self):
         key = b"\x21" + bytes([2]) + b"\x11" * 32

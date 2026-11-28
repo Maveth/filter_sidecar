@@ -300,6 +300,12 @@ RULE_FIELDS = (
         "help": "Multisig used to carry data.",
     },
     {
+        "key": "fakemultisig_keys",
+        "type": "int",
+        "label": "Fake multisig keys allowed",
+        "help": "Mark a script with more 33-byte keys than this. Knots allows 10. A lower number marks more. It cannot be set above 10.",
+    },
+    {
         "key": "rejectbareenvelopes",
         "type": "bool",
         "label": "Reject bare envelopes",

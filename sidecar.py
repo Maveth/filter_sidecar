@@ -556,7 +556,7 @@ def main() -> int:
         print("fee_delta_sats must be negative", flush=True)
         return 2
     dry_run = dry_run_enabled(cfg)
-    poll = max(2, int(cfg.get("poll_seconds") or 10))
+    poll = max(2, int(cfg.get("poll_seconds") or 5))
     node = Node(cfg)
     print(
         f"sidecar dry_run={dry_run} delta={delta} rules={rules_path} poll={poll}s",

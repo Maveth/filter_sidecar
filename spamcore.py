@@ -218,7 +218,16 @@ def _script_spam(script: bytes, as_output: bool, flags: dict) -> Optional[str]:
             if op in (0x75, 0x6D) and only_pushes and flags.get("rejectbareenvelopes"):
                 return "bareenvelope"
             if op in (0xAE, 0xAF) and flags.get("rejectfakemultisig"):
-                if as_output or keys > 10:
+                # Knots allows 10 keys. A lower limit marks more. Above 10 is refused.
+                limit = flags.get("fakemultisig_keys")
+                if isinstance(limit, bool) or not isinstance(limit, (int, float)):
+                    limit = 10
+                limit = int(limit)
+                if limit < 1:
+                    limit = 1
+                if limit > 10:
+                    limit = 10
+                if as_output or keys > limit:
                     return "fakemultisig"
             if flags.get("permitbaremultisig") is False and op in (0xAE, 0xAF) and as_output:
                 return "baremultisig"

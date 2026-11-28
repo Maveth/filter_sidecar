@@ -4,7 +4,7 @@
   "rpc_user": "",
   "rpc_password": "",
   "rules_file": "rules.json",
-  "poll_seconds": 10,
+  "poll_seconds": 5,
   "fee_delta_sats": -1000000000000000,
   "dry_run": false
 }

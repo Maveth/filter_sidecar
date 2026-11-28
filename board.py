@@ -202,6 +202,9 @@ SLIDERS = {
     "many-sigs": (
         {"key": "manysigs_min", "label": "Signature checks", "min": 1, "max": 1000, "step": 1, "default": 100},
     ),
+    "fake-multisig": (
+        {"key": "fakemultisig_keys", "label": "Keys allowed", "min": 1, "max": 10, "step": 1, "default": 10},
+    ),
     "dust-sweep": (
         {"key": "dustsweep_payload_max", "label": "OP_RETURN bytes at most", "min": 0, "max": 80, "step": 1, "default": 4},
     ),
@@ -1052,9 +1055,16 @@ def change_shape(rules: dict, shape_id: str, change: dict, node: dict) -> dict:
     sliders = change.get("sliders")
     allowed_sliders = {spec["key"] for spec in SLIDERS.get(shape_id, ())}
     if isinstance(sliders, dict) and allowed_sliders:
-        for key in allowed_sliders:
-            if key in sliders:
-                updated[key] = sliders[key]
+        for spec in SLIDERS.get(shape_id, ()):
+            key = spec["key"]
+            if key not in sliders:
+                continue
+            raw = sliders[key]
+            if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+                continue
+            value = int(raw)
+            value = max(int(spec["min"]), min(int(spec["max"]), value))
+            updated[key] = value
         if "active" not in change and "sat_vb" not in change and not isinstance(change.get("options"), dict):
             return updated
     options = change.get("options")

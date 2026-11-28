@@ -137,6 +137,10 @@ class ShapeCardTest(unittest.TestCase):
         self.assertEqual(flags["dust_sat_per_kvb"], 4000)
         self.assertFalse(flags["rejectparasites"])
         self.assertFalse(board.change_shape(rules, "dust-output", {"options": {"permitephemeral": False}}, node)["permitephemeral"])
+        tightened = board.change_shape(rules, "fake-multisig", {"sliders": {"fakemultisig_keys": 5}}, node)
+        self.assertEqual(tightened["fakemultisig_keys"], 5)
+        capped = board.change_shape(rules, "fake-multisig", {"sliders": {"fakemultisig_keys": 15}}, node)
+        self.assertEqual(capped["fakemultisig_keys"], 10)
         fan = rows["fan-out"]
         self.assertEqual(fan["control"], "bool")
         self.assertFalse(fan["active"])

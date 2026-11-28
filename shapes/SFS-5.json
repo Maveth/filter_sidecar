@@ -8,7 +8,7 @@
     "unsigned_keys_min": 11,
     "per": "script"
   },
-  "note": "Plumb counts a key as signed only when a signature in the spend verifies against it. This row marks a CHECKMULTISIG with more than ten 33-byte keys. A 2-of-3 stays out. It does not see a key that is not in that multisig, or a 32-byte tapscript key. Those are SFS-32, which is off.",
+  "note": "This row marks a CHECKMULTISIG with more 33-byte keys than the slider. The slider starts at 10, which is Knots' line, and it cannot be set higher. A lower number marks more. A 2-of-3 stays out at 10. It does not see a key that is not in that multisig, or a 32-byte tapscript key. Those are SFS-32, which is off.",
   "slug": "fake-multisig",
   "checker": "fake-multisig"
 }

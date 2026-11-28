@@ -56,7 +56,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
     rules_file: `${dataDir}/rules.json`,
     shapes_file: `${installDir}/shapes.json`,
     listen: `0.0.0.0:${peerPort}`,
-    poll_seconds: 10,
+    poll_seconds: 5,
     dry_run: settings.dryRun === true,
   })
 
