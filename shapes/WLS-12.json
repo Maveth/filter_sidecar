@@ -10,7 +10,7 @@
     "also": "a lone uncompressed key behind those checks, in P2SH only",
     "seen_in": ["Ark hop leaves", "JoinMarket", "Boltz claims", "Core DAO", "batch consolidations"]
   },
-  "note": "The check matches only a lone OP_TRUE with a small number, CSV or CLTV, and DROP, before the OP_TRUE or after it. It is not a miniscript parser, and it does not match a hash lock or a bare key. The same bytes also appear in JoinMarket and Boltz, so this row does not insert an Ark package.",
+  "note": "The check matches a lone OP_TRUE with one CSV or CLTV and DROP, on either side. It also matches one uncompressed key behind that same timelock, and only when that script is the P2SH redeem script. It is not a miniscript parser, and it does not match a hash lock. The same bytes also appear in JoinMarket and Boltz, so this row does not insert an Ark package.",
   "slug": "miniscript-behind-check",
   "checker": "miniscript-behind-check"
 }

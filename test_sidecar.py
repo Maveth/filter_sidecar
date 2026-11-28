@@ -700,6 +700,31 @@ class RulesTest(unittest.TestCase):
 
         leading = b"\x51\xb2\x75\x51"
         trailing = b"\x51\x02\x80\x00\xb1\x75"
+        def compressed(n: int) -> bytes:
+            return b"\x21" + bytes([2]) + bytes([n]) * 32
+
+        def fed_multi(threshold: int, count: int) -> bytes:
+            body = bytes([0x50 + threshold])
+            for n in range(count):
+                body += compressed(n + 1)
+            return body + bytes([0x50 + count, 0xAE])
+
+        federation = fed_multi(11, 11) + b"\x73\x64\x51\xb2\x69" + fed_multi(2, 3) + b"\x68"
+        self.assertEqual(_known_script(federation), "liquid-federation")
+        self.assertIs(example["whitelist_liquid_federation"], False)
+        self.assertEqual(tx_reject_reason(_witness_script_tx(federation, pay), {"rejectfakemultisig": True}), "fakemultisig")
+        self.assertIsNone(tx_reject_reason(_witness_script_tx(federation, pay), {"rejectfakemultisig": True, "whitelist_liquid_federation": True}))
+        broken = fed_multi(11, 11) + b"\x73\x64\x51\xb2" + fed_multi(2, 3) + b"\x68"
+        self.assertIsNone(_known_script(broken))
+        self.assertEqual(tx_reject_reason(_witness_script_tx(broken, pay), {"rejectfakemultisig": True, "whitelist_liquid_federation": True}), "fakemultisig")
+
+        bare_key = b"\x51\xb2\x75\x41" + b"\x04" + b"\x22" * 64 + b"\xac"
+        bare_flag = {"whitelist_miniscript_behind_check": True}
+        self.assertEqual(_known_script(bare_key), "miniscript-behind-check")
+        self.assertFalse(spamcore._excused(bare_key, bare_flag, p2sh=False))
+        self.assertTrue(spamcore._excused(bare_key, bare_flag, p2sh=True))
+        self.assertEqual(tx_reject_reason(_witness_script_tx(b"\x00\x63" + bare_key, pay), {**bare_flag, "rejectdeadbranches": True}), "deadbranch")
+
         kept(leading, "miniscript-behind-check", "whitelist_miniscript_behind_check")
         kept(trailing, "miniscript-behind-check", "whitelist_miniscript_behind_check")
         self.assertIsNone(_known_script(b"\x51\xb2\x75\x52"))

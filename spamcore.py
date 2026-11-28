@@ -23,6 +23,7 @@ CHECKERS = frozenset({
     "powpeg-flyover",
     "consolidation",
     "miniscript-behind-check",
+    "liquid-federation",
     "bolt3-to-local",
     "bolt3-htlc",
     "lnd-revocation",
@@ -683,6 +684,65 @@ def _direct_push(op: int, data: bytes, limit: int) -> bool:
     return 1 <= op <= limit and op == len(data)
 
 
+def _uncompressed_key(op: int, data: bytes) -> bool:
+    return op == 0x41 and len(data) == 65 and data[0] == 4
+
+
+def _op_small(op: int) -> int | None:
+    if 0x51 <= op <= 0x60:
+        return op - 0x50
+    return None
+
+
+def _multisig_run(ops: list[tuple[int, bytes]], index: int) -> int | None:
+    """m, that many compressed keys, n, CHECKMULTISIG. m is at most n, and n is at most 16."""
+    if index >= len(ops):
+        return None
+    threshold = _op_small(ops[index][0])
+    if threshold is None:
+        return None
+    index += 1
+    start = index
+    while index < len(ops) and _compressed_key(*ops[index]):
+        index += 1
+    count = index - start
+    if count < 1 or threshold > count or index + 1 >= len(ops):
+        return None
+    total = _op_small(ops[index][0])
+    if total != count or ops[index + 1][0] != 0xAE:
+        return None
+    return index + 2
+
+
+def _is_timelock_bare_key(ops: list[tuple[int, bytes]]) -> bool:
+    """A small delay, CSV or CLTV, DROP, one uncompressed key, CHECKSIG."""
+    return (
+        len(ops) == 5
+        and _positive_number(*ops[0]) is not None
+        and ops[1][0] in (0xB1, 0xB2)
+        and ops[2][0] == 0x75
+        and _uncompressed_key(*ops[3])
+        and ops[4][0] == 0xAC
+    )
+
+
+def _is_liquid_federation(ops: list[tuple[int, bytes]]) -> bool:
+    """Two compressed multisigs. The second runs only after IFDUP NOTIF, a delay, CSV, and VERIFY."""
+    index = _multisig_run(ops, 0)
+    if index is None or index + 1 >= len(ops):
+        return False
+    if ops[index][0] != 0x73 or ops[index + 1][0] != 0x64:
+        return False
+    index += 2
+    if index >= len(ops) or _positive_number(*ops[index]) is None:
+        return False
+    index += 1
+    if index + 1 >= len(ops) or ops[index][0] != 0xB2 or ops[index + 1][0] != 0x69:
+        return False
+    index = _multisig_run(ops, index + 2)
+    return index is not None and index == len(ops) - 1 and ops[index][0] == 0x68
+
+
 def _is_timelock_true(ops: list[tuple[int, bytes]]) -> bool:
     """OP_TRUE with one small delay, CSV or CLTV, and DROP, on either side."""
     if len(ops) != 4:
@@ -919,8 +979,10 @@ def _known_script(script: bytes) -> str | None:
     ops = _ops(script)
     if not ops:
         return None
-    if _is_timelock_true(ops):
+    if _is_timelock_true(ops) or _is_timelock_bare_key(ops):
         return "miniscript-behind-check"
+    if _is_liquid_federation(ops):
+        return "liquid-federation"
     if _is_bolt3_to_local(ops):
         return "bolt3-to-local"
     if _is_bolt3_htlc(ops):
@@ -944,6 +1006,7 @@ def _known_script(script: bytes) -> str | None:
 
 _KNOWN_FLAG = {
     "miniscript-behind-check": "whitelist_miniscript_behind_check",
+    "liquid-federation": "whitelist_liquid_federation",
     "bolt3-to-local": "whitelist_bolt3_to_local",
     "bolt3-htlc": "whitelist_bolt3_htlc",
     "lnd-revocation": "whitelist_lnd_revocation",
@@ -962,6 +1025,8 @@ def _excused(script: bytes, flags: dict, *, p2sh: bool) -> bool:
     if name is None or flags.get(_KNOWN_FLAG[name]) is not True:
         return False
     if name == "legacy-p2sh-multisig" and not p2sh:
+        return False
+    if name == "miniscript-behind-check" and _is_timelock_bare_key(_ops(script) or []) and not p2sh:
         return False
     return True
 

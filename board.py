@@ -66,6 +66,7 @@ LIVE_RULE = {
     "empty-opreturn": "whitelist_empty_opreturn",
     "consolidation": "whitelist_consolidation",
     "miniscript-behind-check": "whitelist_miniscript_behind_check",
+    "liquid-federation": "whitelist_liquid_federation",
     "bolt3-to-local": "whitelist_bolt3_to_local",
     "bolt3-htlc": "whitelist_bolt3_htlc",
     "lnd-revocation": "whitelist_lnd_revocation",
